@@ -22,7 +22,8 @@ func SetupRoutes() *Server {
 				"status": "Server is Running",
 			})
 		})
-
+		registerAuthRoutes(v1)
+		registerTeamRoutes(v1)
 	}
 
 	return &Server{
