@@ -1,0 +1,38 @@
+package services
+
+import (
+	"CricketDuniya-Backend/internal/dto"
+	"CricketDuniya-Backend/internal/models"
+	"CricketDuniya-Backend/internal/repositories"
+	"time"
+)
+
+func CreateMatch(req dto.CreateMatchRequest, hostUserID string) (*models.Match, error) {
+
+	var parsedDate *time.Time
+
+	if req.MatchDate != "" {
+
+		t, err := time.Parse(time.RFC3339, req.MatchDate)
+		if err != nil {
+			return nil, err
+		}
+
+		parsedDate = &t
+	}
+
+	match := &models.Match{
+		HostUserID:   hostUserID,
+		Venue:        &req.Venue,
+		MatchDate:    parsedDate,
+		OversPerSide: req.OversPerSide,
+		Status:       "scheduled",
+	}
+
+	err := repositories.CreateMatch(match)
+	if err != nil {
+		return nil, err
+	}
+
+	return match, nil
+}

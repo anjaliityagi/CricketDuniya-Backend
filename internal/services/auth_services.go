@@ -15,7 +15,7 @@ var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 func Signup(req dto.SignupRequest) (*models.User, error) {
 
-	existingUser, _ := repositories.GetUserByEmail(req.Email)
+	existingUser, _ := repositories.GetUserByPhoneNumber(req.PhoneNumber)
 	if existingUser != nil {
 		return nil, errors.New("email already exists")
 	}
@@ -31,7 +31,7 @@ func Signup(req dto.SignupRequest) (*models.User, error) {
 
 	user := &models.User{
 		Name:         req.Name,
-		Email:        req.Email,
+		PhoneNumber:  req.PhoneNumber,
 		PasswordHash: string(hashedPassword),
 	}
 
@@ -45,29 +45,31 @@ func Signup(req dto.SignupRequest) (*models.User, error) {
 
 func Login(req dto.LoginRequest) (string, error) {
 
-	user, err := repositories.GetUserByEmail(req.Email)
+	user, err := repositories.GetUserByPhoneNumber(req.PhoneNumber)
 	if err != nil {
 		return "", errors.New("invalid credentials")
 	}
-	//fmt.Println("EMAIL:", req.Email)
+
 	err = bcrypt.CompareHashAndPassword(
 		[]byte(user.PasswordHash),
 		[]byte(req.Password),
 	)
 
 	if err != nil {
-		return "", errors.New("invalid  password")
+		return "", errors.New("invalid password")
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"email":   user.Email,
-	})
-
-	tokenString, err := token.SignedString(jwtSecret)
+	// 🔥 CREATE SESSION
+	session, err := repositories.CreateSession(user.ID)
 	if err != nil {
 		return "", err
 	}
 
-	return tokenString, nil
+	// 🔥 JWT
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":    user.ID,
+		"session_id": session.ID,
+	})
+
+	return token.SignedString(jwtSecret)
 }

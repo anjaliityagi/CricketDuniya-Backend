@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"CricketDuniya-Backend/internal/dto"
+	"CricketDuniya-Backend/internal/repositories"
 	"CricketDuniya-Backend/internal/services"
 	"net/http"
 
@@ -9,27 +10,21 @@ import (
 )
 
 func Signup(c *gin.Context) {
-
 	var req dto.SignupRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
-
 		return
 	}
 
 	user, err := services.Signup(req)
 	if err != nil {
-
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
-
 		return
 	}
 
@@ -41,16 +36,12 @@ func Signup(c *gin.Context) {
 }
 
 func Login(c *gin.Context) {
-
 	var req dto.LoginRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
-
 		return
 	}
 
@@ -61,7 +52,6 @@ func Login(c *gin.Context) {
 			"success": false,
 			"message": err.Error(),
 		})
-
 		return
 	}
 
@@ -71,3 +61,34 @@ func Login(c *gin.Context) {
 		"token":   token,
 	})
 }
+func Logout(c *gin.Context) {
+
+	sessionID := c.GetString("session_id")
+
+	err := repositories.LogoutSession(sessionID)
+	if err != nil {
+		c.JSON(500, gin.H{
+			"success": false,
+			"message": "logout failed",
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "logged out successfully",
+	})
+}
+
+//
+//func forgetPassword(c *gin.Context) {
+//	var req dto.LoginRequest
+//	if err := c.ShouldBindJSON(&req); err != nil {
+//		c.JSON(http.StatusBadRequest, gin.H{
+//			"success": false,
+//			"message": err.Error(),
+//		})
+//		return
+//
+//	}
+//}

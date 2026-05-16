@@ -1,12 +1,21 @@
 package dto
 
+import "time"
+
 type SignupRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Name        string `json:"name" binding:"required"`
+	PhoneNumber string `json:"phone_number" binding:"required,min=10,max=15"`
+	Password    string `json:"password" binding:"required,min=6"`
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	PhoneNumber string `json:"phone_number" binding:"required,min=10,max=15"`
+	Password    string `json:"password" binding:"required"`
+}
+
+type UserSession struct {
+	ID         string     `db:"id"`
+	UserID     string     `db:"user_id"`
+	CreatedAt  time.Time  `db:"created_at"`
+	ArchivedAt *time.Time `db:"archived_at"`
 }
