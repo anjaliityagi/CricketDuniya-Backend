@@ -53,6 +53,7 @@ CREATE TABLE players
 );
 
 
+
 CREATE TABLE tournaments
 (
     id           UUID PRIMARY KEY  DEFAULT gen_random_uuid(),
