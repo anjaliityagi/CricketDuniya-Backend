@@ -36,3 +36,12 @@ func CreateMatch(req dto.CreateMatchRequest, hostUserID string) (*models.Match, 
 
 	return match, nil
 }
+
+func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
+
+	return repositories.GetAllMatches(query)
+}
+
+func GetMatchByID(id string) (*models.Match, error) {
+	return repositories.GetMatchByID(id)
+}

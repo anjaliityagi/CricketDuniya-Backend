@@ -21,7 +21,10 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 			protected.POST("/logout", handlers.Logout)
 			protected.POST("/matches", handlers.CreateMatch)
 			protected.POST("/players", handlers.CreatePlayer)
+			//protected.GET("/matches", handlers.GetAllMatches)
 
+			//protected.POST("/matches/:id/toss", handlers.DoToss)
+			protected.POST("/toss", handlers.TossHandler)
 		}
 	}
 }
