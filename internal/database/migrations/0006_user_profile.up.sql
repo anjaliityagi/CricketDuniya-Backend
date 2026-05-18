@@ -1,0 +1,9 @@
+BEGIN;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS batting_style VARCHAR(50);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS bowling_style VARCHAR(50);
+
+COMMIT;

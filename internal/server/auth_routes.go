@@ -19,6 +19,11 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 		protected.Use(middleware.AuthMiddleware())
 		{
 			protected.POST("/logout", handlers.Logout)
+
+			protected.GET("/profile", handlers.GetUserProfile)
+
+			protected.PATCH("/profile", handlers.UpdateUserProfile)
+			
 			protected.POST("/matches", handlers.CreateMatch)
 			protected.POST("/players", handlers.CreatePlayer)
 			//protected.GET("/matches", handlers.GetAllMatches)
