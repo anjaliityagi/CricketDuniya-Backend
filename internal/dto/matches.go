@@ -4,8 +4,10 @@ import "time"
 
 type CreateMatchRequest struct {
 	Venue        string `json:"venue"`
-	MatchDate    string `json:"match_date"`
+	MatchDate    string `json:"match_date" binding:"required"`
 	OversPerSide int    `json:"overs_per_side" binding:"required,min=1"`
+	TeamAID      string `json:"team_a_id" binding:"required"`
+	TeamBID      string `json:"team_b_id" binding:"required"`
 }
 
 type GetMatchesQuery struct {

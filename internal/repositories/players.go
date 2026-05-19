@@ -13,7 +13,7 @@ func CreatePlayer(player *models.MatchPlayer) error {
 		user_id,
 		player_name,
 		phone,
-		team_side,
+		team_id,
 		is_host,
 		is_captain,
 		is_wicketkeeper
@@ -28,7 +28,7 @@ func CreatePlayer(player *models.MatchPlayer) error {
 		player.UserID,
 		player.PlayerName,
 		player.Phone,
-		player.TeamSide,
+		player.TeamID,
 		player.IsHost,
 		player.IsCaptain,
 		player.IsWicketkeeper,
@@ -36,4 +36,26 @@ func CreatePlayer(player *models.MatchPlayer) error {
 		&player.ID,
 		&player.CreatedAt,
 	)
+}
+
+func DeletePlayer(playerID string, userID string) (bool, error) {
+	query := `
+	UPDATE match_players
+	SET removed_at = NOW()
+	WHERE id = $1
+	AND user_id = $2
+	AND removed_at IS NULL
+	`
+
+	result, err := database.DB.Exec(query, playerID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
 }

@@ -11,18 +11,22 @@ func CreateMatch(match *models.Match) error {
 
 	query := `
 	INSERT INTO matches (
+	                     team_a_id,
+	                     team_b_id,
 		host_user_id,
 		venue,
 		match_date,
 		overs_per_side,
 		status
 	)
-	VALUES ($1, $2, $3, $4, $5)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	RETURNING id, created_at
 	`
 
 	return database.DB.QueryRowx(
 		query,
+		match.TeamAID,
+		match.TeamBID,
 		match.HostUserID,
 		match.Venue,
 		match.MatchDate,

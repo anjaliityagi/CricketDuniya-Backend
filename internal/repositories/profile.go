@@ -76,6 +76,7 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 		FROM match_players mp
 		JOIN matches m ON m.id = mp.match_id
 		WHERE mp.user_id = $1
+		AND mp.removed_at IS NULL
 	),
 	user_points AS (
 		SELECT
@@ -83,12 +84,14 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 		FROM player_match_stats pms
 		JOIN match_players mp ON mp.id = pms.player_id
 		WHERE mp.user_id = $1
+		AND mp.removed_at IS NULL
 	),
 	user_mvps AS (
 		SELECT COUNT(*) AS mvps
 		FROM player_match_stats pms
 		JOIN match_players mp ON mp.id = pms.player_id
 		WHERE mp.user_id = $1
+		AND mp.removed_at IS NULL
 		AND pms.fantasy_points = (
 			SELECT MAX(match_stats.fantasy_points)
 			FROM player_match_stats match_stats
@@ -134,6 +137,7 @@ func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
 	FROM player_match_stats pms
 	JOIN match_players mp ON mp.id = pms.player_id
 	WHERE mp.user_id = $1
+	AND mp.removed_at IS NULL
 	`
 
 	var stats dto.UserBattingStats
@@ -156,6 +160,7 @@ func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
 	FROM player_match_stats pms
 	JOIN match_players mp ON mp.id = pms.player_id
 	WHERE mp.user_id = $1
+	AND mp.removed_at IS NULL
 	`
 
 	var stats dto.UserBowlingStats
@@ -176,6 +181,7 @@ func GetUserFieldingStats(userID string) (*dto.UserFieldingStats, error) {
 	FROM player_match_stats pms
 	JOIN match_players mp ON mp.id = pms.player_id
 	WHERE mp.user_id = $1
+	AND mp.removed_at IS NULL
 	`
 
 	var stats dto.UserFieldingStats

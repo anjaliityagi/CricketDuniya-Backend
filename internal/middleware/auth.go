@@ -44,9 +44,15 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		sessionID := claims["session_id"].(string)
+		sessionID, ok := claims["session_id"].(string)
+		if !ok || sessionID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid session_id",
+			})
+			c.Abort()
+			return
+		}
 
-		// 🔥 SESSION CHECK
 		active, _ := repositories.IsSessionActive(sessionID)
 		if !active {
 			c.JSON(401, gin.H{"error": "session expired"})
