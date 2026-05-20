@@ -5,24 +5,22 @@ import (
 	"CricketDuniya-Backend/internal/models"
 	"CricketDuniya-Backend/internal/repositories"
 	"errors"
+
+	"github.com/google/uuid"
 )
 
 var ErrPlayerNotFound = errors.New("player not found")
 
-func CreatePlayer(req dto.CreatePlayerRequest, userID string) (*models.MatchPlayer, error) {
+func CreatePlayer(req dto.CreatePlayerRequest, teamID uuid.UUID) (*models.MatchPlayer, error) {
 
 	player := &models.MatchPlayer{
-		MatchID:        req.MatchID,
-		UserID:         &userID,
-		PlayerName:     req.PlayerName,
-		Phone:          req.Phone,
-		TeamID:         req.TeamID,
-		IsHost:         false,
-		IsCaptain:      false,
-		IsWicketkeeper: false,
+
+		PlayerID:  req.PLayerID,
+		IsHost:    false,
+		IsCaptain: false,
 	}
 
-	err := repositories.CreatePlayer(player)
+	err := repositories.CreatePlayer(player, teamID)
 	if err != nil {
 		return nil, err
 	}

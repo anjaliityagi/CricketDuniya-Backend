@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func CreatePlayer(c *gin.Context) {
@@ -22,9 +23,15 @@ func CreatePlayer(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetString("user_id")
+	teamIDStr := c.Param("id")
 
-	player, err := services.CreatePlayer(req, userID)
+	teamID, err := uuid.Parse(teamIDStr)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid uuid"})
+		return
+	}
+
+	player, err := services.CreatePlayer(req, teamID)
 	if err != nil {
 
 		c.JSON(http.StatusInternalServerError, gin.H{

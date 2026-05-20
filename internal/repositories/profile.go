@@ -12,8 +12,6 @@ func GetUserProfileUser(userID string) (*dto.UserProfileUser, error) {
 		name,
 		phone_number,
 		profile_image,
-		batting_style,
-		bowling_style,
 		created_at,
 		updated_at
 	FROM users
@@ -35,8 +33,6 @@ func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserPr
 	SET
 		name = COALESCE($2, name),
 		profile_image = COALESCE($3, profile_image),
-		batting_style = COALESCE($4, batting_style),
-		bowling_style = COALESCE($5, bowling_style),
 		updated_at = NOW()
 	WHERE id = $1
 	RETURNING
@@ -44,8 +40,6 @@ func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserPr
 		name,
 		phone_number,
 		profile_image,
-		batting_style,
-		bowling_style,
 		created_at,
 		updated_at
 	`
@@ -56,63 +50,57 @@ func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserPr
 		userID,
 		req.Name,
 		req.ProfileImage,
-		req.BattingStyle,
-		req.BowlingStyle,
 	).StructScan(&user)
+
 	if err != nil {
 		return nil, err
 	}
 
 	return &user, nil
 }
-
 func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
+
 	query := `
-	WITH user_matches AS (
-		SELECT DISTINCT
-			mp.match_id,
-			mp.team_id,
-			m.winner_team_id
-		FROM match_players mp
-		JOIN matches m ON m.id = mp.match_id
-		WHERE mp.user_id = $1
-		AND mp.removed_at IS NULL
+	WITH user_base AS (
+		SELECT 
+			pms.match_id,
+			pms.fantasy_points,
+			pms.is_out,
+		
+			m.winner_match_team_id
+		FROM player_match_stats pms
+		LEFT JOIN matches m ON m.id = pms.match_id
+		WHERE pms.user_id = $1
 	),
-	user_points AS (
+
+	user_stats AS (
 		SELECT
-			COALESCE(SUM(pms.fantasy_points), 0) AS points
-		FROM player_match_stats pms
-		JOIN match_players mp ON mp.id = pms.player_id
-		WHERE mp.user_id = $1
-		AND mp.removed_at IS NULL
+			COUNT(DISTINCT match_id) AS matches_played,
+			COALESCE(SUM(fantasy_points), 0) AS total_points,
+			COUNT(*) FILTER (WHERE is_out = true) AS dismissals
+		FROM user_base
 	),
-	user_mvps AS (
-		SELECT COUNT(*) AS mvps
-		FROM player_match_stats pms
-		JOIN match_players mp ON mp.id = pms.player_id
-		WHERE mp.user_id = $1
-		AND mp.removed_at IS NULL
-		AND pms.fantasy_points = (
-			SELECT MAX(match_stats.fantasy_points)
-			FROM player_match_stats match_stats
-			WHERE match_stats.match_id = pms.match_id
-		)
+
+	win_stats AS (
+		SELECT
+			COUNT(*) FILTER (WHERE winner_match_team_id IS NOT NULL) AS total_matches
+-- 			COUNT(*) FILTER (WHERE winner_match_team_id = match_team_id) AS wins
+		FROM user_base
 	)
+
 	SELECT
-		COUNT(um.match_id)::INT AS matches_played,
-		COUNT(CASE WHEN um.winner_team_id IS NOT NULL AND um.winner_team_id = um.team_id THEN 1 END)::INT AS won,
-		COUNT(CASE WHEN um.winner_team_id IS NOT NULL AND um.winner_team_id <> um.team_id THEN 1 END)::INT AS lost,
-		COALESCE((SELECT mvps FROM user_mvps), 0)::INT AS mvps,
-		COALESCE(
-			ROUND(
-				COUNT(CASE WHEN um.winner_team_id IS NOT NULL AND um.winner_team_id = um.team_id THEN 1 END)::NUMERIC
-				* 100 / NULLIF(COUNT(CASE WHEN um.winner_team_id IS NOT NULL THEN 1 END), 0),
-				2
-			),
-			0
-		)::FLOAT AS win_percentage,
-		COALESCE((SELECT points FROM user_points), 0)::INT AS points
-	FROM user_matches um
+		COALESCE(us.matches_played, 0)::INT AS matches_played,
+-- 		COALESCE(ws.wins, 0)::INT AS won,
+-- 		COALESCE(ws.total_matches - ws.wins, 0)::INT AS lost,
+		COALESCE(us.total_points, 0)::INT AS points,
+
+		CASE
+			WHEN COALESCE(ws.total_matches, 0) = 0 THEN 0
+-- 			ELSE ROUND((ws.wins::NUMERIC * 100) / ws.total_matches, 2)
+		END AS win_percentage
+
+	FROM user_stats us
+	CROSS JOIN win_stats ws
 	`
 
 	var stats dto.UserProfileSummary
@@ -123,21 +111,32 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 
 	return &stats, nil
 }
-
 func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
+
 	query := `
 	SELECT
-		COALESCE(ROUND(SUM(pms.runs)::NUMERIC / NULLIF(COUNT(CASE WHEN pms.is_out THEN 1 END), 0), 2), 0)::FLOAT AS average,
-		COALESCE(ROUND(SUM(pms.runs)::NUMERIC * 100 / NULLIF(SUM(pms.balls_faced), 0), 2), 0)::FLOAT AS strike_rate,
-		COALESCE(MAX(pms.runs), 0)::INT AS high_score,
-		COALESCE(SUM(pms.runs), 0)::INT AS runs,
-		COUNT(CASE WHEN pms.balls_faced > 0 OR pms.runs > 0 THEN 1 END)::INT AS innings,
-		COALESCE(SUM(pms.fours), 0)::INT AS fours,
-		COALESCE(SUM(pms.sixes), 0)::INT AS sixes
-	FROM player_match_stats pms
-	JOIN match_players mp ON mp.id = pms.player_id
-	WHERE mp.user_id = $1
-	AND mp.removed_at IS NULL
+		COALESCE(
+			ROUND(
+				SUM(runs_scored)::NUMERIC /
+				NULLIF(COUNT(CASE WHEN is_out THEN 1 END), 0),
+			2),
+		0)::FLOAT AS average,
+
+		COALESCE(
+			ROUND(
+				SUM(runs_scored)::NUMERIC * 100 /
+				NULLIF(SUM(balls_faced), 0),
+			2),
+		0)::FLOAT AS strike_rate,
+
+		COALESCE(MAX(runs_scored),0)::INT AS high_score,
+		COALESCE(SUM(runs_scored),0)::INT AS runs,
+		COUNT(*)::INT AS innings,
+		COALESCE(SUM(fours),0)::INT AS fours,
+		COALESCE(SUM(sixes),0)::INT AS sixes
+
+	FROM player_match_stats
+	WHERE user_id = $1
 	`
 
 	var stats dto.UserBattingStats
@@ -148,19 +147,24 @@ func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
 
 	return &stats, nil
 }
-
 func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
+
 	query := `
 	SELECT
-		COALESCE(SUM(pms.overs_bowled), 0)::FLOAT AS overs_bowled,
-		COALESCE(SUM(pms.wickets), 0)::INT AS wickets,
-		COALESCE(SUM(pms.runs_conceded), 0)::INT AS runs_conceded,
-		COALESCE(SUM(pms.maidens), 0)::INT AS maidens,
-		COALESCE(ROUND(SUM(pms.runs_conceded)::NUMERIC / NULLIF(SUM(pms.overs_bowled), 0), 2), 0)::FLOAT AS economy
-	FROM player_match_stats pms
-	JOIN match_players mp ON mp.id = pms.player_id
-	WHERE mp.user_id = $1
-	AND mp.removed_at IS NULL
+		COALESCE(SUM(overs_bowled),0)::FLOAT AS overs_bowled,
+		COALESCE(SUM(wickets_taken),0)::INT AS wickets,
+		COALESCE(SUM(runs_conceded),0)::INT AS runs_conceded,
+		COALESCE(SUM(maidens),0)::INT AS maidens,
+
+		COALESCE(
+			ROUND(
+				SUM(runs_conceded)::NUMERIC /
+				NULLIF(SUM(overs_bowled),0),
+			2),
+		0)::FLOAT AS economy
+
+	FROM player_match_stats
+	WHERE user_id = $1
 	`
 
 	var stats dto.UserBowlingStats
@@ -171,17 +175,15 @@ func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
 
 	return &stats, nil
 }
-
 func GetUserFieldingStats(userID string) (*dto.UserFieldingStats, error) {
+
 	query := `
 	SELECT
-		COALESCE(SUM(pms.catches), 0)::INT AS catches,
-		COALESCE(SUM(pms.stumping), 0)::INT AS stumping,
-		COALESCE(SUM(pms.run_outs), 0)::INT AS run_outs
-	FROM player_match_stats pms
-	JOIN match_players mp ON mp.id = pms.player_id
-	WHERE mp.user_id = $1
-	AND mp.removed_at IS NULL
+		COALESCE(SUM(catches),0)::INT AS catches,
+		COALESCE(SUM(stumping),0)::INT AS stumping,
+		COALESCE(SUM(runouts),0)::INT AS run_outs
+	FROM player_match_stats
+	WHERE user_id = $1
 	`
 
 	var stats dto.UserFieldingStats

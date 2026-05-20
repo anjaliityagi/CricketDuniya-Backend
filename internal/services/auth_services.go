@@ -59,13 +59,11 @@ func Login(req dto.LoginRequest) (string, error) {
 		return "", errors.New("invalid password")
 	}
 
-	// 🔥 CREATE SESSION
 	session, err := repositories.CreateSession(user.ID)
 	if err != nil {
 		return "", err
 	}
 
-	// 🔥 JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":    user.ID,
 		"session_id": session.ID,

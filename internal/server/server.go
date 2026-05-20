@@ -52,6 +52,7 @@ func SetupRoutes() *Server {
 		registerAuthRoutes(v1)
 		registerTeamRoutes(v1)
 		MatchRoutes(v1)
+		ScoringRoutes(v1)
 
 	}
 

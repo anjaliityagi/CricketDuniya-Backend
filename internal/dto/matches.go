@@ -3,11 +3,11 @@ package dto
 import "time"
 
 type CreateMatchRequest struct {
-	Venue        string `json:"venue"`
-	MatchDate    string `json:"match_date" binding:"required"`
-	OversPerSide int    `json:"overs_per_side" binding:"required,min=1"`
-	TeamAID      string `json:"team_a_id" binding:"required"`
-	TeamBID      string `json:"team_b_id" binding:"required"`
+	TeamAID         string `json:"team_a_id"`
+	TeamBID         string `json:"team_b_id"`
+	Location        string `json:"location"`
+	MatchDate       string `json:"match_date" binding:"required"`
+	OversPerInnings int    `json:"overs_per_innings" binding:"required,min=1"`
 }
 
 type GetMatchesQuery struct {
@@ -26,15 +26,15 @@ type MatchResponse struct {
 	TeamBID   *string `db:"team_b_id" json:"team_b_id"`
 	TeamBName *string `db:"team_b_name" json:"team_b_name"`
 
-	Venue *string `db:"venue" json:"venue"`
+	Location *string `db:"location" json:"location"`
 
 	Status string `db:"status" json:"status"`
 
 	MatchDate *time.Time `db:"match_date" json:"match_date"`
 
-	OversPerSide int `db:"overs_per_side" json:"overs_per_side"`
+	OversPerInnings int `db:"overs_per_innings" json:"overs_per_innings"`
 
 	TossDecision *string `db:"toss_decision" json:"toss_decision"`
 
-	WinnerTeamID *string `db:"winner_team_id" json:"winner_team_id"`
+	WinnerTeamID *string `db:"winner_match_team_id" json:"winner_match_team_id"`
 }

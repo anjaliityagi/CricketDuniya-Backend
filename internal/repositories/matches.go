@@ -11,12 +11,12 @@ func CreateMatch(match *models.Match) error {
 
 	query := `
 	INSERT INTO matches (
-	                     team_a_id,
+	           team_a_id,
 	                     team_b_id,
 		host_user_id,
-		venue,
+		location,
 		match_date,
-		overs_per_side,
+		overs_per_innings,
 		status
 	)
 	VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -28,9 +28,9 @@ func CreateMatch(match *models.Match) error {
 		match.TeamAID,
 		match.TeamBID,
 		match.HostUserID,
-		match.Venue,
+		match.Location,
 		match.MatchDate,
-		match.OversPerSide,
+		match.OversPerInnings,
 		match.Status,
 	).Scan(
 		&match.ID,
@@ -46,12 +46,12 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 			ta.name AS team_a_name,
 			m.team_b_id,
 			tb.name AS team_b_name,
-			m.venue,
+			m.location,
 			m.status,
 			m.match_date,
-			m.overs_per_side,
+			m.overs_per_innings,
 			m.toss_decision,
-			m.winner_team_id
+			m.winner_match_team_id
 		FROM matches m
 		left join  teams ta ON ta.id = m.team_a_id
 		left join teams tb ON tb.id = m.team_b_id
@@ -119,8 +119,8 @@ func GetMatchByID(matchID string) (*models.Match, error) {
 	SELECT
 		id,
 		host_user_id,
-		venue,
-		overs_per_side,
+		location,
+		overs_per_innings,
 		status,
 		created_at,
 		team_a_id,

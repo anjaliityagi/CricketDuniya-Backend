@@ -25,12 +25,15 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 			protected.PATCH("/profile", handlers.UpdateUserProfile)
 
 			protected.POST("/matches", handlers.CreateMatch)
-			protected.POST("/players", handlers.CreatePlayer)
+
+			protected.POST("/teams/:id/players", handlers.CreatePlayer)
 			protected.DELETE("/players/:id", handlers.DeletePlayer)
 			//protected.GET("/matches", handlers.GetAllMatches)
 
 			//protected.POST("/matches/:id/toss", handlers.DoToss)
 			protected.POST("/toss", handlers.TossHandler)
+
+			//protected.POST("/api/v1/ball/update", handlers.UpdateBall)
 		}
 	}
 }

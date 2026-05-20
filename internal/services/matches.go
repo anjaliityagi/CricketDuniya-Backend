@@ -22,13 +22,13 @@ func CreateMatch(req dto.CreateMatchRequest, hostUserID string) (*models.Match, 
 	}
 
 	match := &models.Match{
-		TeamAID:      &req.TeamAID,
-		TeamBID:      &req.TeamBID,
-		HostUserID:   hostUserID,
-		Venue:        &req.Venue,
-		MatchDate:    parsedDate,
-		OversPerSide: req.OversPerSide,
-		Status:       "scheduled",
+		TeamAID:         &req.TeamAID,
+		TeamBID:         &req.TeamBID,
+		HostUserID:      hostUserID,
+		Location:        &req.Location,
+		MatchDate:       parsedDate,
+		OversPerInnings: req.OversPerInnings,
+		Status:          "scheduled",
 	}
 
 	err := repositories.CreateMatch(match)
