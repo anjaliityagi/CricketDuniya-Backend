@@ -38,3 +38,7 @@ type MatchResponse struct {
 
 	WinnerTeamID *string `db:"winner_match_team_id" json:"winner_match_team_id"`
 }
+
+type CompleteMatchRequest struct {
+	WinnerMatchTeamID string `json:"winner_match_team_id" binding:"required"`
+}

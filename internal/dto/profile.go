@@ -4,7 +4,6 @@ import "time"
 
 type UpdateProfileRequest struct {
 	Name         *string `json:"name" binding:"omitempty,min=1,max=100"`
-	ProfileImage *string `json:"profile_image"`
 	BattingStyle *string `json:"batting_style"`
 	BowlingStyle *string `json:"bowling_style"`
 }
@@ -21,7 +20,6 @@ type UserProfileUser struct {
 	ID           string    `db:"id" json:"id"`
 	Name         string    `db:"name" json:"name"`
 	PhoneNumber  string    `db:"phone_number" json:"phone_number"`
-	ProfileImage *string   `db:"profile_image" json:"profile_image"`
 	BattingStyle *string   `db:"batting_style" json:"batting_style"`
 	BowlingStyle *string   `db:"bowling_style" json:"bowling_style"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`

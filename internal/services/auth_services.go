@@ -17,7 +17,7 @@ func Signup(req dto.SignupRequest) (*models.User, error) {
 
 	existingUser, _ := repositories.GetUserByPhoneNumber(req.PhoneNumber)
 	if existingUser != nil {
-		return nil, errors.New("email already exists")
+		return nil, errors.New("phone number already exists")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword(

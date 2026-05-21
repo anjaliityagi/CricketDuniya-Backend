@@ -41,7 +41,6 @@ func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 		name,
 		phone_number,
 		password_hash,
-		profile_image,
 		created_at,
 		updated_at
 	FROM users

@@ -4,6 +4,7 @@ import (
 	"CricketDuniya-Backend/internal/dto"
 	"CricketDuniya-Backend/internal/models"
 	"CricketDuniya-Backend/internal/repositories"
+	"CricketDuniya-Backend/internal/services/scoring"
 	"time"
 )
 
@@ -36,6 +37,11 @@ func CreateMatch(req dto.CreateMatchRequest, hostUserID string) (*models.Match, 
 		return nil, err
 	}
 
+	_, _, err = repositories.CreateMatchSnapshots(match.ID, req.TeamAID, req.TeamBID)
+	if err != nil {
+		return nil, err
+	}
+
 	return match, nil
 }
 
@@ -46,4 +52,23 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 
 func GetMatchByID(id string) (*models.Match, error) {
 	return repositories.GetMatchByID(id)
+}
+
+func CompleteMatch(matchID, winnerMatchTeamID string) error {
+	inningsIDs, err := repositories.GetMatchInningsIDs(matchID)
+	if err != nil {
+		return err
+	}
+
+	for _, inningsID := range inningsIDs {
+		if err := scoring.ApplyNotOutBonus(matchID, inningsID); err != nil {
+			return err
+		}
+	}
+
+	if err := scoring.ApplyResultPoints(matchID, winnerMatchTeamID); err != nil {
+		return err
+	}
+
+	return repositories.FinalizeMatch(matchID, winnerMatchTeamID)
 }

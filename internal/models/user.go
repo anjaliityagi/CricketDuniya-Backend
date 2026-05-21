@@ -7,7 +7,6 @@ type User struct {
 	Name         string    `db:"name" json:"name"`
 	PhoneNumber  string    `db:"phone_number" json:"phone_number"`
 	PasswordHash string    `db:"password_hash" json:"-"`
-	ProfileImage *string   `db:"profile_image" json:"profile_image"`
 	BattingStyle *string   `db:"batting_style" json:"batting_style"`
 	BowlingStyle *string   `db:"bowling_style" json:"bowling_style"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`

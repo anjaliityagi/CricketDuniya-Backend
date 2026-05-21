@@ -15,11 +15,7 @@ func CreatePlayer(c *gin.Context) {
 	var req dto.CreatePlayerRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid player details", err)
 		return
 	}
 
@@ -27,17 +23,13 @@ func CreatePlayer(c *gin.Context) {
 
 	teamID, err := uuid.Parse(teamIDStr)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid uuid"})
+		badRequest(c, "Invalid team id", err)
 		return
 	}
 
 	player, err := services.CreatePlayer(req, teamID)
 	if err != nil {
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to add player right now. Please try again", err)
 		return
 	}
 
@@ -63,17 +55,11 @@ func DeletePlayer(c *gin.Context) {
 	err := services.DeletePlayer(playerID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrPlayerNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
+			notFound(c, "Player not found", err)
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to delete player right now. Please try again", err)
 		return
 	}
 

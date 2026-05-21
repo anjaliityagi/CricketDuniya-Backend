@@ -25,6 +25,7 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 			protected.PATCH("/profile", handlers.UpdateUserProfile)
 
 			protected.POST("/matches", handlers.CreateMatch)
+			protected.PATCH("/matches/:id/complete", handlers.CompleteMatch)
 
 			protected.POST("/teams/:id/players", handlers.CreatePlayer)
 			protected.DELETE("/players/:id", handlers.DeletePlayer)

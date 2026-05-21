@@ -38,7 +38,7 @@ func SetupRoutes() *Server {
 			"Content-Length",
 		},
 		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
+		MaxAge: 12 * time.Hour,
 	}))
 
 	v1 := router.Group("/v1")
@@ -50,6 +50,7 @@ func SetupRoutes() *Server {
 			})
 		})
 		registerAuthRoutes(v1)
+		registerUserRoutes(v1)
 		registerTeamRoutes(v1)
 		MatchRoutes(v1)
 		ScoringRoutes(v1)

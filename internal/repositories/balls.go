@@ -5,7 +5,7 @@ import (
 	"CricketDuniya-Backend/internal/dto"
 )
 
-func SaveBall(req dto.BallRequest) error {
+func SaveBall(req dto.BallRequest) (string, error) {
 	query := `
 	INSERT INTO ball_events (
 		id,
@@ -25,6 +25,7 @@ func SaveBall(req dto.BallRequest) error {
 		is_boundary_four,
 		is_boundary_six,
 		is_wicket,
+		dismissal_type,
 		dismissed_player_id,
 		fielder_id,
 		wides,
@@ -37,12 +38,14 @@ func SaveBall(req dto.BallRequest) error {
 		gen_random_uuid(),
 		$1,$2,$3,$4,$5,
 		$6,$7,$8,$9,$10,$11,$12,
-		$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,
+		$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,
 		NOW()
 	)
+	RETURNING id
 	`
 
-	_, err := database.DB.Exec(query,
+	var ballEventID string
+	err := database.DB.QueryRowx(query,
 		req.InningsID,
 		req.MatchID,
 		req.StrikerID,
@@ -59,13 +62,14 @@ func SaveBall(req dto.BallRequest) error {
 		req.IsBoundaryFour,
 		req.IsBoundarySix,
 		req.IsWicket,
+		req.DismissalType,
 		req.DismissedPlayerID,
 		req.FielderID,
 		req.Wides,
 		req.NoBalls,
 		req.Byes,
 		req.LegByes,
-	)
+	).Scan(&ballEventID)
 
-	return err
+	return ballEventID, err
 }

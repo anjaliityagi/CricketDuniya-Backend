@@ -13,11 +13,7 @@ func TossHandler(c *gin.Context) {
 	var req dto.TossRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid toss details", err)
 
 		return
 	}
@@ -25,11 +21,7 @@ func TossHandler(c *gin.Context) {
 	err := services.PerformToss(req)
 
 	if err != nil {
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to complete toss right now. Please try again", err)
 
 		return
 	}

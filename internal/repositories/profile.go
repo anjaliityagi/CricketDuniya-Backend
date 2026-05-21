@@ -11,7 +11,6 @@ func GetUserProfileUser(userID string) (*dto.UserProfileUser, error) {
 		id,
 		name,
 		phone_number,
-		profile_image,
 		created_at,
 		updated_at
 	FROM users
@@ -32,14 +31,12 @@ func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserPr
 	UPDATE users
 	SET
 		name = COALESCE($2, name),
-		profile_image = COALESCE($3, profile_image),
 		updated_at = NOW()
 	WHERE id = $1
 	RETURNING
 		id,
 		name,
 		phone_number,
-		profile_image,
 		created_at,
 		updated_at
 	`
@@ -49,7 +46,6 @@ func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserPr
 		query,
 		userID,
 		req.Name,
-		req.ProfileImage,
 	).StructScan(&user)
 
 	if err != nil {
@@ -94,10 +90,7 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 -- 		COALESCE(ws.total_matches - ws.wins, 0)::INT AS lost,
 		COALESCE(us.total_points, 0)::INT AS points,
 
-		CASE
-			WHEN COALESCE(ws.total_matches, 0) = 0 THEN 0
--- 			ELSE ROUND((ws.wins::NUMERIC * 100) / ws.total_matches, 2)
-		END AS win_percentage
+		0::NUMERIC AS win_percentage
 
 	FROM user_stats us
 	CROSS JOIN win_stats ws

@@ -14,19 +14,13 @@ import (
 func Signup(c *gin.Context) {
 	var req dto.SignupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid signup details", err)
 		return
 	}
 
 	user, err := services.Signup(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Unable to create account with provided details", err)
 		return
 	}
 
@@ -40,20 +34,13 @@ func Signup(c *gin.Context) {
 func Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid login details", err)
 		return
 	}
 
 	token, err := services.Login(req)
 	if err != nil {
-
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorized(c, "Invalid phone number or password", err)
 		return
 	}
 
@@ -69,10 +56,7 @@ func Logout(c *gin.Context) {
 
 	err := repositories.LogoutSession(sessionID)
 	if err != nil {
-		c.JSON(500, gin.H{
-			"success": false,
-			"message": "logout failed",
-		})
+		internalServerError(c, "Unable to logout right now. Please try again", err)
 		return
 	}
 

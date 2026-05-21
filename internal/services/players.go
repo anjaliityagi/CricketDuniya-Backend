@@ -40,3 +40,7 @@ func DeletePlayer(playerID string, userID string) error {
 
 	return nil
 }
+
+func GetPlayersByTeam(teamID string) ([]dto.TeamPlayerResponse, error) {
+	return repositories.GetPlayersByTeamID(teamID)
+}

@@ -8,47 +8,36 @@ import (
 
 func PerformToss(req dto.TossRequest) error {
 
-	match, err := repositories.GetMatchByID(req.MatchID)
+	matchTeams, err := repositories.GetMatchTeams(req.MatchID)
+
 	if err != nil {
 		return err
 	}
 
-	if match.TeamAID == nil || match.TeamBID == nil {
-		return errors.New("teams are not assigned to match")
+	if len(matchTeams) != 2 {
+		return errors.New("match teams are not ready")
 	}
 
-	var battingTeamID string
-	var bowlingTeamID string
-
-	if req.Decision == "bat" {
-
-		battingTeamID = req.TossWinnerTeamID
-
-		if req.TossWinnerTeamID == *match.TeamAID {
-
-			bowlingTeamID = *match.TeamBID
-
-		} else {
-
-			bowlingTeamID = *match.TeamAID
-		}
-
-	} else if req.Decision == "bowl" {
-
-		bowlingTeamID = req.TossWinnerTeamID
-
-		if req.TossWinnerTeamID == *match.TeamAID {
-
-			battingTeamID = *match.TeamBID
-
-		} else {
-
-			battingTeamID = *match.TeamAID
-		}
-
-	} else {
-
+	if req.Decision != "bat" && req.Decision != "bowl" {
 		return errors.New("invalid toss decision")
+	}
+
+	var winnerIdx = -1
+	for i := range matchTeams {
+		if matchTeams[i].ID == req.TossWinnerTeamID {
+			winnerIdx = i
+			break
+		}
+	}
+	if winnerIdx == -1 {
+		return errors.New("toss winner team is not part of this match")
+	}
+
+	loserIdx := 1 - winnerIdx
+	battingTeamID := matchTeams[winnerIdx].ID
+	bowlingTeamID := matchTeams[loserIdx].ID
+	if req.Decision == "bowl" {
+		battingTeamID, bowlingTeamID = bowlingTeamID, battingTeamID
 	}
 
 	err = repositories.UpdateToss(
@@ -61,12 +50,7 @@ func PerformToss(req dto.TossRequest) error {
 		return err
 	}
 
-	err = repositories.CreateInnings(
-		req.MatchID,
-		battingTeamID,
-		bowlingTeamID,
-		1,
-	)
+	err = repositories.CreateInnings(req.MatchID, battingTeamID, bowlingTeamID, 1)
 
 	if err != nil {
 		return err

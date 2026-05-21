@@ -40,14 +40,14 @@ func CreatePlayer(player *models.MatchPlayer, teamID uuid.UUID) error {
 
 func DeletePlayer(playerID string, userID string) (bool, error) {
 	query := `
-	UPDATE match_players
+	UPDATE team_players
 	SET removed_at = NOW()
 	WHERE id = $1
-	AND user_id = $2
 	AND removed_at IS NULL
 	`
 
-	result, err := database.DB.Exec(query, playerID, userID)
+	_ = userID
+	result, err := database.DB.Exec(query, playerID)
 	if err != nil {
 		return false, err
 	}

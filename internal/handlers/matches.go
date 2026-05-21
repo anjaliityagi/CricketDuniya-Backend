@@ -12,10 +12,7 @@ import (
 func CreateMatch(c *gin.Context) {
 	var req dto.CreateMatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid match details", err)
 		return
 	}
 	userID := c.GetString("user_id")
@@ -23,10 +20,7 @@ func CreateMatch(c *gin.Context) {
 	match, err := services.CreateMatch(req, userID)
 	fmt.Println(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to create match right now. Please try again", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
@@ -38,19 +32,12 @@ func CreateMatch(c *gin.Context) {
 func GetAllMatches(c *gin.Context) {
 	var query dto.GetMatchesQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid query parameters", err)
 		return
 	}
 	matches, err := services.GetAllMatches(query)
 	if err != nil {
-		//fmt.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to fetch matches right now. Please try again", err)
 
 		return
 	}
@@ -78,5 +65,29 @@ func GetMatchByID(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"data":    match,
+	})
+}
+
+func CompleteMatch(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "match id is required"})
+		return
+	}
+
+	var req dto.CompleteMatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, "Please provide valid match completion details", err)
+		return
+	}
+
+	if err := services.CompleteMatch(matchID, req.WinnerMatchTeamID); err != nil {
+		internalServerError(c, "Unable to complete match right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "match completed successfully",
 	})
 }

@@ -13,10 +13,7 @@ func GetUserProfile(c *gin.Context) {
 
 	profile, err := services.GetUserProfile(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to fetch profile right now. Please try again", err)
 		return
 	}
 
@@ -32,10 +29,7 @@ func UpdateUserProfile(c *gin.Context) {
 	var req dto.UpdateProfileRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		badRequest(c, "Please provide valid profile details", err)
 		return
 	}
 
@@ -43,10 +37,7 @@ func UpdateUserProfile(c *gin.Context) {
 
 	profile, err := services.UpdateUserProfile(userID, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		internalServerError(c, "Unable to update profile right now. Please try again", err)
 		return
 	}
 

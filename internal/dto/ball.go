@@ -24,7 +24,8 @@ type BallRequest struct {
 	IsBoundaryFour bool `json:"is_boundary_four"`
 	IsBoundarySix  bool `json:"is_boundary_six"`
 
-	IsWicket bool `json:"is_wicket"`
+	IsWicket      bool   `json:"is_wicket"`
+	DismissalType string `json:"dismissal_type"`
 
 	DismissedPlayerID *uuid.UUID `json:"dismissed_player_id"`
 	FielderID         *uuid.UUID `json:"fielder_id"`

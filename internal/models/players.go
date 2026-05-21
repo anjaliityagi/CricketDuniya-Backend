@@ -5,7 +5,7 @@ import "time"
 type MatchPlayer struct {
 	ID string `db:"id" json:"id"`
 	//MatchID        string     `db:"match_id" json:"match_id"`
-	PlayerID *string `db:"user_id" json:"player_id,omitempty"`
+	PlayerID *string `db:"player_id" json:"player_id,omitempty"`
 
 
 	TeamID    *string `db:"team_id" json:"team_id"`

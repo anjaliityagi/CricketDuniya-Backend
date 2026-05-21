@@ -23,7 +23,6 @@ CREATE TABLE users
     name          VARCHAR(100)        NOT NULL,
     email         VARCHAR(100) UNIQUE NOT NULL,
     password_hash TEXT                NOT NULL,
-    profile_image TEXT,
     created_at    TIMESTAMP        DEFAULT NOW(),
     updated_at    TIMESTAMP        DEFAULT NOW()
 );

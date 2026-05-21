@@ -3,18 +3,13 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- =====================================================
--- DROP UNUSED TABLES
--- =====================================================
 
 DROP TABLE IF EXISTS tournament_teams CASCADE;
 DROP TABLE IF EXISTS tournaments CASCADE;
 DROP TABLE IF EXISTS overs CASCADE;
 DROP TABLE IF EXISTS players CASCADE;
 
--- =====================================================
--- USERS
--- =====================================================
+
 
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS is_phone_verified BOOLEAN DEFAULT FALSE,
@@ -25,19 +20,13 @@ ALTER TABLE users
     DROP COLUMN IF EXISTS bowling_style,
     DROP COLUMN IF EXISTS role;
 
--- =====================================================
--- TEAMS
--- =====================================================
-
 ALTER TABLE teams
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
 ALTER TABLE teams
     RENAME COLUMN created_by TO created_by_user_id;
 
--- =====================================================
--- TEAM_PLAYERS
--- =====================================================
+
 
 ALTER TABLE team_players
     RENAME COLUMN player_id TO user_id;
@@ -52,9 +41,7 @@ ALTER TABLE team_players
 ALTER TABLE team_players
     ADD CONSTRAINT unique_team_user UNIQUE(team_id, user_id);
 
--- =====================================================
--- MATCHES
--- =====================================================
+
 
 ALTER TABLE matches
     DROP COLUMN IF EXISTS tournament_id,
@@ -92,9 +79,7 @@ ALTER TABLE matches
     ADD COLUMN IF NOT EXISTS worst_player_user_id UUID REFERENCES users(id),
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
--- =====================================================
--- MATCH_TEAMS
--- =====================================================
+
 
 ALTER TABLE match_teams
     DROP COLUMN IF EXISTS target_score;
@@ -106,15 +91,9 @@ ALTER TABLE match_teams
     ADD COLUMN IF NOT EXISTS is_temporary BOOLEAN DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
--- =====================================================
--- REMOVE MATCH_TEAM_PLAYERS
--- =====================================================
 
 DROP TABLE IF EXISTS match_team_players CASCADE;
 
--- =====================================================
--- INNINGS
--- =====================================================
 
 ALTER TABLE innings
     DROP COLUMN IF EXISTS batting_team_id,
@@ -132,9 +111,6 @@ ALTER TABLE innings
 ALTER TABLE innings
     RENAME COLUMN ended_at TO completed_at;
 
--- =====================================================
--- BALLS -> BALL_EVENTS
--- =====================================================
 
 ALTER TABLE balls
     RENAME TO ball_events;
@@ -214,9 +190,7 @@ ALTER TABLE player_match_stats
     ADD COLUMN IF NOT EXISTS fielding_points INT DEFAULT 0,
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
--- =====================================================
--- SUPER OVERS
--- =====================================================
+
 
 CREATE TABLE IF NOT EXISTS super_overs (
                                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -238,9 +212,6 @@ CREATE TABLE IF NOT EXISTS super_overs (
                                            updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- =====================================================
--- POINT CATEGORY ENUM
--- =====================================================
 
 DO $$
     BEGIN
@@ -260,9 +231,6 @@ DO $$
         END IF;
     END$$;
 
--- =====================================================
--- POINT EVENTS
--- =====================================================
 
 CREATE TABLE IF NOT EXISTS point_events (
                                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -282,9 +250,7 @@ CREATE TABLE IF NOT EXISTS point_events (
                                             created_at TIMESTAMP DEFAULT NOW()
 );
 
--- =====================================================
--- AUDIT LOGS
--- =====================================================
+
 
 CREATE TABLE IF NOT EXISTS audit_logs (
                                           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -304,9 +270,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
                                           created_at TIMESTAMP DEFAULT NOW()
 );
 
--- =====================================================
--- INDEXES
--- =====================================================
+
 
 CREATE INDEX IF NOT EXISTS idx_ball_events_match
     ON ball_events(match_id);
@@ -324,29 +288,4 @@ CREATE INDEX IF NOT EXISTS idx_matches_status
     ON matches(status);
 
 COMMIT;
-```
 
-# Final Architecture
-
-## Tables Remaining
-
-* users
-* user_session
-* teams
-* team_players
-* matches
-* match_teams
-* innings
-* ball_events
-* player_match_stats
-* point_events
-* audit_logs
-* super_overs
-* schema_migrations
-
-## Tables Removed
-
-* players
-* overs
-* tournaments
-* tournament_teams
