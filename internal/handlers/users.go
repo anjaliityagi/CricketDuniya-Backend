@@ -8,7 +8,9 @@ import (
 )
 
 func GetUsers(c *gin.Context) {
-	users, err := services.GetAllUsers()
+	search := c.Query("search")
+
+	users, err := services.GetAllUsers(search)
 	if err != nil {
 		internalServerError(c, "Unable to fetch users right now. Please try again", err)
 		return

@@ -53,8 +53,7 @@ func upsertFantasyPoints(tx *sqlx.Tx, matchID, matchPlayerID string, points int,
 			fantasy_points = COALESCE(fantasy_points, 0) + $3,
 			updated_at = NOW()
 		WHERE match_id = $1
-		  AND match_team_player_id = $2
-	`
+		  AND team_player_id = $2`
 	res, err := tx.Exec(query, matchID, matchPlayerID, points)
 	if err != nil {
 		return err
@@ -68,7 +67,7 @@ func upsertFantasyPoints(tx *sqlx.Tx, matchID, matchPlayerID string, points int,
 	}
 
 	insertQuery := `
-		INSERT INTO player_match_stats (match_id,match_team_player_id, ` + bucket + `, fantasy_points, updated_at)
+		INSERT INTO player_match_stats (match_id,team_player_id, ` + bucket + `, fantasy_points, updated_at)
 		VALUES ($1, $2, $3, $3, NOW())
 	`
 	_, err = tx.Exec(insertQuery, matchID, matchPlayerID, points)
@@ -82,18 +81,17 @@ func insertPointEvent(tx *sqlx.Tx, matchID, matchPlayerID, ballEventID, category
 			ball_event_id,
 			category,
 			rule_name,
-			points
-		)
+			points)
 		SELECT
 			$1,
-			mtp.user_id,
+			tp.player_id,
 			$2,
 			$3::point_category,
 			$4,
 			$5
-		FROM match_team_players mtp
-		WHERE mtp.id = $6
-		  AND mtp.user_id IS NOT NULL`,
+		FROM team_players tp
+		WHERE tp.id = $6
+		  AND tp.player_id IS NOT NULL`,
 		matchID, ballEventID, category, ruleName, points, matchPlayerID)
 	return err
 }

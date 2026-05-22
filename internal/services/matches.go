@@ -54,7 +54,36 @@ func GetMatchByID(id string) (*models.Match, error) {
 	return repositories.GetMatchByID(id)
 }
 
-func CompleteMatch(matchID, winnerMatchTeamID string) error {
+func GetMatchDetailByID(id string) (*dto.MatchResponse, error) {
+	return repositories.GetMatchDetailByID(id)
+}
+
+func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
+	return repositories.GetMatchInnings(matchID)
+}
+
+func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
+	return repositories.GetMatchScorecard(matchID)
+}
+
+func StartMatch(matchID string) ([]dto.InningsResponse, error) {
+	return repositories.StartMatch(matchID)
+}
+
+func GetMatchSquad(matchID string) ([]dto.MatchSquadPlayer, error) {
+	return repositories.GetMatchSquad(matchID)
+}
+
+func UpdateMatchLineup(matchID string, req dto.UpdateMatchLineupRequest) error {
+	return repositories.UpdateMatchLineup(matchID, req.Players)
+}
+
+func CompleteMatch(matchID, winnerTeamOrMatchTeamID string) error {
+	winnerMatchTeamID, err := repositories.ResolveMatchTeamID(matchID, winnerTeamOrMatchTeamID)
+	if err != nil {
+		return err
+	}
+
 	inningsIDs, err := repositories.GetMatchInningsIDs(matchID)
 	if err != nil {
 		return err

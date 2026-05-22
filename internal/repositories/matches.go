@@ -47,74 +47,8 @@ func CreateMatch(match *models.Match) error {
 }
 
 func CreateMatchSnapshots(matchID string, teamAID string, teamBID string) (string, string, error) {
-	tx, err := database.DB.Beginx()
-	if err != nil {
-		return "", "", err
-	}
-	defer tx.Rollback()
-
-	createSnapshot := func(sourceTeamID string) (string, error) {
-		var matchTeamID string
-		insertSnapshot := `
-			INSERT INTO match_teams (match_id, team_id)
-			SELECT $1, t.id
-			FROM teams t
-			WHERE t.id = $2
-			RETURNING id
-		`
-		if err := tx.QueryRow(insertSnapshot, matchID, sourceTeamID).Scan(&matchTeamID); err != nil {
-			return "", err
-		}
-
-		copyPlayers := `
-			INSERT INTO match_team_players (
-				match_team_id,
-				user_id,
-				player_name,
-				phone_number,
-				is_playing_xi,
-				is_substitute,
-				is_captain,
-				is_wicket_keeper,
-				batting_order
-			)
-			SELECT
-				$1,
-				tp.player_id,
-				u.name,
-				u.phone_number,
-				TRUE,
-				COALESCE(tp.is_substitute, FALSE),
-				COALESCE(tp.is_captain, FALSE),
-				COALESCE(tp.is_wicket_keeper, FALSE),
-				tp.batting_order
-			FROM team_players tp
-			JOIN users u ON u.id = tp.player_id
-			WHERE tp.team_id = $2
-			  AND tp.removed_at IS NULL
-		`
-		if _, err := tx.Exec(copyPlayers, matchTeamID, sourceTeamID); err != nil {
-			return "", err
-		}
-
-		return matchTeamID, nil
-	}
-
-	matchTeamAID, err := createSnapshot(teamAID)
-	if err != nil {
-		return "", "", err
-	}
-
-	matchTeamBID, err := createSnapshot(teamBID)
-	if err != nil {
-		return "", "", err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return "", "", err
-	}
-
-	return matchTeamAID, matchTeamBID, nil
+	_ = matchID
+	return teamAID, teamBID, nil
 }
 
 func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
@@ -122,10 +56,12 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 	baseQuery := `
 		SELECT
 			m.id,
-			COALESCE(mt_a.id, m.team_a_id) AS team_a_id,
+			m.team_a_id,
 			 ta_legacy.name AS team_a_name,
-			COALESCE(mt_b.id, m.team_b_id) AS team_b_id,
+			m.team_b_id,
 			tb_legacy.name AS team_b_name,
+			m.team_a_id AS team_a_match_team_id,
+			m.team_b_id AS team_b_match_team_id,
 			m.location,
 			m.status,
 			m.match_date,
@@ -133,23 +69,6 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 			m.toss_decision,
 			m.winner_match_team_id
 		FROM matches m
-		LEFT JOIN LATERAL (
-			SELECT id
-			FROM match_teams
-			WHERE match_id = m.id
-			  AND deleted_at IS NULL
-			ORDER BY created_at ASC
-			LIMIT 1
-		) mt_a ON TRUE
-		LEFT JOIN LATERAL (
-			SELECT id
-			FROM match_teams
-			WHERE match_id = m.id
-			  AND deleted_at IS NULL
-			ORDER BY created_at ASC
-			OFFSET 1
-			LIMIT 1
-		) mt_b ON TRUE
 		LEFT JOIN teams ta_legacy ON ta_legacy.id = m.team_a_id
 		LEFT JOIN teams tb_legacy ON tb_legacy.id = m.team_b_id
 		WHERE 1=1
@@ -164,8 +83,8 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 	}
 
 	if query.TeamID != "" {
-		baseQuery += fmt.Sprintf(" AND (m.team_a_id = $%d OR m.team_b_id = $%d OR mt_a.id = $%d OR mt_b.id = $%d)", len(args)+1, len(args)+2, len(args)+3, len(args)+4)
-		args = append(args, query.TeamID, query.TeamID, query.TeamID, query.TeamID)
+		baseQuery += fmt.Sprintf(" AND (m.team_a_id = $%d OR m.team_b_id = $%d)", len(args)+1, len(args)+2)
+		args = append(args, query.TeamID, query.TeamID)
 	}
 
 	if query.HostUserID != "" {
@@ -176,8 +95,8 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 	if query.Search != "" {
 		baseQuery += `
 			AND (
-				LOWER(COALESCE(mt_a.display_name, ta_legacy.name, '')) LIKE $%d
-				OR LOWER(COALESCE(mt_b.display_name, tb_legacy.name, '')) LIKE $%d
+				LOWER(COALESCE(ta_legacy.name, '')) LIKE $%d
+				OR LOWER(COALESCE(tb_legacy.name, '')) LIKE $%d
 				OR LOWER(m.location) LIKE $%d
 			)
 		`
@@ -221,6 +140,297 @@ func GetMatchByID(matchID string) (*models.Match, error) {
 	return &match, nil
 }
 
+func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
+	var match dto.MatchResponse
+
+	query := `
+	SELECT
+		m.id,
+		m.team_a_id,
+		ta.name AS team_a_name,
+		m.team_b_id,
+		tb.name AS team_b_name,
+		m.team_a_id AS team_a_match_team_id,
+		m.team_b_id AS team_b_match_team_id,
+		m.location,
+		m.status,
+		m.match_date,
+		m.overs_per_innings,
+		m.toss_decision,
+		m.winner_match_team_id
+	FROM matches m
+	LEFT JOIN teams ta ON ta.id = m.team_a_id
+	LEFT JOIN teams tb ON tb.id = m.team_b_id
+	WHERE m.id = $1
+	`
+
+	if err := database.DB.Get(&match, query, matchID); err != nil {
+		return nil, err
+	}
+
+	return &match, nil
+}
+
+func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
+	var innings []dto.InningsResponse
+
+	query := `
+	SELECT
+		id,
+		match_id,
+		innings_no,
+		batting_team_id,
+		bowling_team_id,
+		COALESCE(total_runs, 0) AS total_runs,
+		COALESCE(total_wickets, 0) AS total_wickets
+	FROM innings
+	WHERE match_id = $1
+	ORDER BY innings_no ASC, created_at ASC
+	`
+
+	if err := database.DB.Select(&innings, query, matchID); err != nil {
+		return nil, err
+	}
+
+	return innings, nil
+}
+
+func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
+	scorecard := &dto.MatchScorecardResponse{}
+
+	innings, err := GetMatchInnings(matchID)
+	if err != nil {
+		return nil, err
+	}
+	scorecard.Innings = innings
+
+	battingQuery := `
+	SELECT
+		pms.team_player_id,
+		tp.team_id,
+		tp.player_id AS user_id,
+		COALESCE(u.name, '') AS player_name,
+		COALESCE(pms.runs_scored, 0) AS runs_scored,
+		COALESCE(pms.balls_faced, 0) AS balls_faced,
+		COALESCE(pms.fours, 0) AS fours,
+		COALESCE(pms.sixes, 0) AS sixes,
+		COALESCE(pms.is_out, FALSE) AS is_out,
+		COALESCE(pms.runs_conceded, 0) AS runs_conceded,
+		COALESCE(pms.wickets_taken, 0) AS wickets_taken,
+		COALESCE(pms.overs_bowled, 0) AS overs_bowled,
+		COALESCE(pms.fantasy_points, 0) AS fantasy_points
+	FROM player_match_stats pms
+	JOIN team_players tp ON tp.id = pms.team_player_id
+	LEFT JOIN users u ON u.id = tp.player_id
+	WHERE pms.match_id = $1
+	ORDER BY pms.runs_scored DESC, pms.balls_faced DESC
+	`
+	if err := database.DB.Select(&scorecard.Batting, battingQuery, matchID); err != nil {
+		return nil, err
+	}
+
+	bowlingQuery := `
+	SELECT
+		pms.team_player_id,
+		tp.team_id,
+		tp.player_id AS user_id,
+		COALESCE(u.name, '') AS player_name,
+		COALESCE(pms.runs_scored, 0) AS runs_scored,
+		COALESCE(pms.balls_faced, 0) AS balls_faced,
+		COALESCE(pms.fours, 0) AS fours,
+		COALESCE(pms.sixes, 0) AS sixes,
+		COALESCE(pms.is_out, FALSE) AS is_out,
+		COALESCE(pms.runs_conceded, 0) AS runs_conceded,
+		COALESCE(pms.wickets_taken, 0) AS wickets_taken,
+		COALESCE(pms.overs_bowled, 0) AS overs_bowled,
+		COALESCE(pms.fantasy_points, 0) AS fantasy_points
+	FROM player_match_stats pms
+	JOIN team_players tp ON tp.id = pms.team_player_id
+	LEFT JOIN users u ON u.id = tp.player_id
+	WHERE pms.match_id = $1
+	ORDER BY pms.wickets_taken DESC, pms.overs_bowled DESC
+	`
+	if err := database.DB.Select(&scorecard.Bowling, bowlingQuery, matchID); err != nil {
+		return nil, err
+	}
+
+	recentBallsQuery := `
+	SELECT
+		id,
+		innings_id,
+		ball_no,
+		COALESCE(delivery_no, delivery_number, 1) AS delivery_no,
+		COALESCE(ball_type, 'normal') AS ball_type,
+		COALESCE(total_runs, 0) AS total_runs,
+		COALESCE(is_wicket, FALSE) AS is_wicket,
+		striker_id,
+		non_striker_id,
+		bowler_id,
+		dismissal_type
+	FROM ball_events
+	WHERE match_id = $1
+	  AND is_deleted = FALSE
+	ORDER BY created_at DESC
+	LIMIT 12
+	`
+	if err := database.DB.Select(&scorecard.RecentBalls, recentBallsQuery, matchID); err != nil {
+		return nil, err
+	}
+
+	var current struct {
+		StrikerID    *string `db:"striker_id"`
+		NonStrikerID *string `db:"non_striker_id"`
+		BowlerID     *string `db:"bowler_id"`
+	}
+	err = database.DB.Get(&current, `
+		SELECT striker_id, non_striker_id, bowler_id
+		FROM ball_events
+		WHERE match_id = $1
+		  AND is_deleted = FALSE
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, matchID)
+	if err == nil {
+		scorecard.CurrentStrikerID = current.StrikerID
+		scorecard.CurrentNonStrikerID = current.NonStrikerID
+		scorecard.CurrentBowlerID = current.BowlerID
+	}
+
+	return scorecard, nil
+}
+
+func ResolveMatchTeamID(matchID string, teamOrMatchTeamID string) (string, error) {
+	var resolvedID string
+
+	query := `
+	SELECT id
+	FROM teams
+	WHERE (id::text = $2)
+	  AND id IN (
+		SELECT team_a_id FROM matches WHERE id = $1
+		UNION
+		SELECT team_b_id FROM matches WHERE id = $1
+	  )
+	LIMIT 1
+	`
+
+	if err := database.DB.Get(&resolvedID, query, matchID, teamOrMatchTeamID); err != nil {
+		return "", err
+	}
+
+	return resolvedID, nil
+}
+
+func StartMatch(matchID string) ([]dto.InningsResponse, error) {
+	tx, err := database.DB.Beginx()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`
+		UPDATE matches
+		SET status = 'live', started_at = COALESCE(started_at, NOW())
+		WHERE id = $1
+	`, matchID)
+	if err != nil {
+		return nil, err
+	}
+
+	var inningsCount int
+	if err := tx.Get(&inningsCount, `SELECT COUNT(1) FROM innings WHERE match_id = $1`, matchID); err != nil {
+		return nil, err
+	}
+
+	if inningsCount == 0 {
+		var teamA, teamB string
+		if err := tx.QueryRowx(`SELECT team_a_id, team_b_id FROM matches WHERE id = $1`, matchID).Scan(&teamA, &teamB); err != nil {
+			return nil, err
+		}
+
+		if _, err := tx.Exec(`
+			INSERT INTO innings (
+				match_id,
+				batting_team_id,
+				bowling_team_id,
+				innings_no,
+				started_at
+			) VALUES ($1, $2, $3, 1, NOW())
+		`, matchID, teamA, teamB); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return GetMatchInnings(matchID)
+}
+
+func GetMatchSquad(matchID string) ([]dto.MatchSquadPlayer, error) {
+	var players []dto.MatchSquadPlayer
+
+	query := `
+	SELECT
+		tp.id AS team_player_id,
+		tp.team_id,
+		tp.player_id AS user_id,
+		COALESCE(u.name, '') AS player_name,
+		u.phone_number,
+		COALESCE(tp.is_playing_xi, FALSE) AS is_playing_xi,
+		COALESCE(tp.is_captain, FALSE) AS is_captain,
+		COALESCE(tp.is_wicket_keeper, FALSE) AS is_wicket_keeper,
+		tp.batting_order
+	FROM team_players tp
+	LEFT JOIN users u ON u.id = tp.player_id
+	WHERE tp.team_id IN (
+		SELECT team_a_id FROM matches WHERE id = $1
+		UNION
+		SELECT team_b_id FROM matches WHERE id = $1
+	)
+	  AND tp.deleted_at IS NULL
+	ORDER BY tp.team_id ASC, tp.batting_order ASC NULLS LAST, tp.created_at ASC
+	`
+
+	if err := database.DB.Select(&players, query, matchID); err != nil {
+		return nil, err
+	}
+
+	return players, nil
+}
+
+func UpdateMatchLineup(matchID string, players []dto.UpdateLineupPlayer) error {
+	tx, err := database.DB.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, p := range players {
+		_, err := tx.Exec(`
+			UPDATE team_players tp
+			SET
+				is_playing_xi = $1,
+				is_captain = $2,
+				is_wicket_keeper = $3,
+				batting_order = $4,
+				updated_at = NOW()
+			WHERE tp.id = $5
+			  AND tp.team_id IN (
+				SELECT team_a_id FROM matches WHERE id = $6
+				UNION
+				SELECT team_b_id FROM matches WHERE id = $6
+			  )
+		`, p.IsPlayingXI, p.IsCaptain, p.IsWicketKeeper, p.BattingOrder, p.MatchTeamPlayerID, matchID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func GetMatchInningsIDs(matchID string) ([]string, error) {
 	var ids []string
 	err := database.DB.Select(&ids, `
@@ -246,11 +456,11 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 	var worstUserID *string
 
 	err = tx.QueryRowx(`
-		SELECT mtp.user_id
+		SELECT tp.player_id
 		FROM player_match_stats pms
-		JOIN match_team_players mtp ON mtp.id = pms.match_team_player_id
+		JOIN team_players tp ON tp.id = pms.team_player_id
 		WHERE pms.match_id = $1
-		  AND mtp.user_id IS NOT NULL
+		  AND tp.player_id IS NOT NULL
 		ORDER BY pms.fantasy_points DESC, pms.updated_at DESC
 		LIMIT 1
 	`, matchID).Scan(&pomUserID)
@@ -259,11 +469,11 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 	}
 
 	err = tx.QueryRowx(`
-		SELECT mtp.user_id
+		SELECT tp.player_id
 		FROM player_match_stats pms
-		JOIN match_team_players mtp ON mtp.id = pms.match_team_player_id
+		JOIN team_players tp ON tp.id = pms.team_player_id
 		WHERE pms.match_id = $1
-		  AND mtp.user_id IS NOT NULL
+		  AND tp.player_id IS NOT NULL
 		ORDER BY pms.fantasy_points ASC, pms.updated_at DESC
 		LIMIT 1
 	`, matchID).Scan(&worstUserID)

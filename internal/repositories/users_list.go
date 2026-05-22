@@ -3,9 +3,10 @@ package repositories
 import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/dto"
+	"strings"
 )
 
-func GetAllUsers() ([]dto.UserProfileUser, error) {
+func GetAllUsers(search string) ([]dto.UserProfileUser, error) {
 	var users []dto.UserProfileUser
 
 	query := `SELECT
@@ -14,10 +15,20 @@ func GetAllUsers() ([]dto.UserProfileUser, error) {
 		phone_number,
 		created_at,
 		updated_at
-	FROM users
-	ORDER BY created_at DESC`
+	FROM users`
 
-	err := database.DB.Select(&users, query)
+	args := []interface{}{}
+	if strings.TrimSpace(search) != "" {
+		query += `
+		WHERE phone_number ILIKE $1
+		   OR name ILIKE $1`
+		args = append(args, "%"+strings.TrimSpace(search)+"%")
+	}
+	query += `
+	ORDER BY created_at DESC
+	LIMIT 50`
+
+	err := database.DB.Select(&users, query, args...)
 	if err != nil {
 		return nil, err
 	}

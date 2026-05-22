@@ -20,11 +20,10 @@ func GetPlayersByTeamID(teamID string) ([]dto.TeamPlayerResponse, error) {
 		COALESCE(tp.is_substitute, FALSE) AS is_substitute,
 		tp.batting_order,
 		tp.created_at,
-		tp.removed_at
+		NULL::TIMESTAMP AS removed_at
 	FROM team_players tp
 	LEFT JOIN users u ON u.id = tp.player_id
 	WHERE tp.team_id = $1
-	  AND tp.removed_at IS NULL
 	  AND tp.deleted_at IS NULL
 	ORDER BY tp.batting_order NULLS LAST, tp.created_at ASC
 	`

@@ -104,7 +104,7 @@ func upsertBattingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, le
 			is_out = COALESCE(is_out, FALSE) OR $7,
 			updated_at = NOW()
 		WHERE match_id = $1
-		  AND match_team_player_id = $2
+		  AND team_player_id = $2
 	`, matchID, matchPlayerID, runs, balls, fours, sixes, outInc)
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func upsertBattingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, le
 	_, err = tx.Exec(`
 		INSERT INTO player_match_stats (                    
 		    match_id,
-			match_team_player_id,
+			team_player_id,
 			runs_scored,
 			balls_faced,
 			fours,
@@ -152,7 +152,7 @@ func upsertBowlingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runsConceded
 			overs_bowled = COALESCE(overs_bowled, 0) + $5,
 			updated_at = NOW()
 		WHERE match_id = $1
-		  AND match_team_player_id = $2
+		  AND team_player_id = $2
 	`, matchID, matchPlayerID, runsConceded, wickets, overDelta)
 	if err != nil {
 		return err
@@ -169,7 +169,7 @@ func upsertBowlingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runsConceded
 	_, err = tx.Exec(`
 		INSERT INTO player_match_stats (
 			match_id,
-			match_team_player_id,
+			team_player_id,
 			runs_conceded,
 			wickets_taken,
 			overs_bowled,

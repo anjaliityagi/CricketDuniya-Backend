@@ -18,7 +18,7 @@ func TossHandler(c *gin.Context) {
 		return
 	}
 
-	err := services.PerformToss(req)
+	innings, err := services.PerformToss(req)
 
 	if err != nil {
 		internalServerError(c, "Unable to complete toss right now. Please try again", err)
@@ -28,6 +28,7 @@ func TossHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Toss completed successfully",
+		"message": "Toss completed successfully and match is now live",
+		"innings": innings,
 	})
 }

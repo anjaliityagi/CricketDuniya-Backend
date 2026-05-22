@@ -26,6 +26,9 @@ type MatchResponse struct {
 	TeamBID   *string `db:"team_b_id" json:"team_b_id"`
 	TeamBName *string `db:"team_b_name" json:"team_b_name"`
 
+	TeamAMatchTeamID *string `db:"team_a_match_team_id" json:"team_a_match_team_id"`
+	TeamBMatchTeamID *string `db:"team_b_match_team_id" json:"team_b_match_team_id"`
+
 	Location *string `db:"location" json:"location"`
 
 	Status string `db:"status" json:"status"`
@@ -40,5 +43,80 @@ type MatchResponse struct {
 }
 
 type CompleteMatchRequest struct {
-	WinnerMatchTeamID string `json:"winner_match_team_id" binding:"required"`
+	WinnerMatchTeamID string `json:"winner_match_team_id"`
+	WinnerTeamID      string `json:"winner_team_id"`
+}
+
+type InningsResponse struct {
+	ID                 string  `db:"id" json:"id"`
+	MatchID            string  `db:"match_id" json:"match_id"`
+	InningsNo          int     `db:"innings_no" json:"innings_no"`
+	BattingMatchTeamID *string `db:"batting_team_id" json:"batting_match_team_id"`
+	BowlingMatchTeamID *string `db:"bowling_team_id" json:"bowling_match_team_id"`
+	TotalRuns          int     `db:"total_runs" json:"total_runs"`
+	TotalWickets       int     `db:"total_wickets" json:"total_wickets"`
+}
+
+type ScorecardPlayerStats struct {
+	MatchTeamPlayerID string  `db:"team_player_id" json:"match_team_player_id"`
+	MatchTeamID       *string `db:"team_id" json:"match_team_id"`
+	UserID            *string `db:"user_id" json:"user_id"`
+	PlayerName        string  `db:"player_name" json:"player_name"`
+	RunsScored        int     `db:"runs_scored" json:"runs_scored"`
+	BallsFaced        int     `db:"balls_faced" json:"balls_faced"`
+	Fours             int     `db:"fours" json:"fours"`
+	Sixes             int     `db:"sixes" json:"sixes"`
+	IsOut             bool    `db:"is_out" json:"is_out"`
+	RunsConceded      int     `db:"runs_conceded" json:"runs_conceded"`
+	WicketsTaken      int     `db:"wickets_taken" json:"wickets_taken"`
+	OversBowled       float64 `db:"overs_bowled" json:"overs_bowled"`
+	FantasyPoints     int     `db:"fantasy_points" json:"fantasy_points"`
+}
+
+type RecentBall struct {
+	ID            string  `db:"id" json:"id"`
+	InningsID     string  `db:"innings_id" json:"innings_id"`
+	BallNo        int     `db:"ball_no" json:"ball_no"`
+	DeliveryNo    int     `db:"delivery_no" json:"delivery_no"`
+	BallType      string  `db:"ball_type" json:"ball_type"`
+	TotalRuns     int     `db:"total_runs" json:"total_runs"`
+	IsWicket      bool    `db:"is_wicket" json:"is_wicket"`
+	StrikerID     *string `db:"striker_id" json:"striker_id"`
+	NonStrikerID  *string `db:"non_striker_id" json:"non_striker_id"`
+	BowlerID      *string `db:"bowler_id" json:"bowler_id"`
+	DismissalType *string `db:"dismissal_type" json:"dismissal_type"`
+}
+
+type MatchScorecardResponse struct {
+	Innings             []InningsResponse      `json:"innings"`
+	Batting             []ScorecardPlayerStats `json:"batting"`
+	Bowling             []ScorecardPlayerStats `json:"bowling"`
+	RecentBalls         []RecentBall           `json:"recent_balls"`
+	CurrentStrikerID    *string                `json:"current_striker_id"`
+	CurrentNonStrikerID *string                `json:"current_non_striker_id"`
+	CurrentBowlerID     *string                `json:"current_bowler_id"`
+}
+
+type MatchSquadPlayer struct {
+	MatchTeamPlayerID string  `db:"team_player_id" json:"match_team_player_id"`
+	MatchTeamID       string  `db:"team_id" json:"match_team_id"`
+	UserID            *string `db:"user_id" json:"user_id"`
+	PlayerName        string  `db:"player_name" json:"player_name"`
+	PhoneNumber       *string `db:"phone_number" json:"phone_number"`
+	IsPlayingXI       bool    `db:"is_playing_xi" json:"is_playing_xi"`
+	IsCaptain         bool    `db:"is_captain" json:"is_captain"`
+	IsWicketKeeper    bool    `db:"is_wicket_keeper" json:"is_wicket_keeper"`
+	BattingOrder      *int    `db:"batting_order" json:"batting_order"`
+}
+
+type UpdateLineupPlayer struct {
+	MatchTeamPlayerID string `json:"match_team_player_id" binding:"required"`
+	IsPlayingXI       bool   `json:"is_playing_xi"`
+	IsCaptain         bool   `json:"is_captain"`
+	IsWicketKeeper    bool   `json:"is_wicket_keeper"`
+	BattingOrder      *int   `json:"batting_order"`
+}
+
+type UpdateMatchLineupRequest struct {
+	Players []UpdateLineupPlayer `json:"players" binding:"required,min=1"`
 }

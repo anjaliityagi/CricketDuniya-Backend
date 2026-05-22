@@ -5,6 +5,6 @@ import (
 	"CricketDuniya-Backend/internal/repositories"
 )
 
-func GetAllUsers() ([]dto.UserProfileUser, error) {
-	return repositories.GetAllUsers()
+func GetAllUsers(search string) ([]dto.UserProfileUser, error) {
+	return repositories.GetAllUsers(search)
 }

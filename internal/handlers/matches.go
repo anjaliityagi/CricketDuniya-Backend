@@ -52,12 +52,9 @@ func GetMatchByID(c *gin.Context) {
 
 	id := c.Param("id")
 
-	match, err := services.GetMatchByID(id)
+	match, err := services.GetMatchDetailByID(id)
 	if err != nil {
-		c.JSON(404, gin.H{
-			"success": false,
-			"message": "match not found",
-		})
+		notFound(c, "Match not found", err)
 		fmt.Println(err)
 		return
 	}
@@ -81,7 +78,16 @@ func CompleteMatch(c *gin.Context) {
 		return
 	}
 
-	if err := services.CompleteMatch(matchID, req.WinnerMatchTeamID); err != nil {
+	winnerTeamID := req.WinnerMatchTeamID
+	if winnerTeamID == "" {
+		winnerTeamID = req.WinnerTeamID
+	}
+	if winnerTeamID == "" {
+		badRequest(c, "winner_match_team_id or winner_team_id is required", nil)
+		return
+	}
+
+	if err := services.CompleteMatch(matchID, winnerTeamID); err != nil {
 		internalServerError(c, "Unable to complete match right now. Please try again", err)
 		return
 	}
@@ -89,5 +95,106 @@ func CompleteMatch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "match completed successfully",
+	})
+}
+
+func GetMatchInnings(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		badRequest(c, "match id is required", nil)
+		return
+	}
+
+	innings, err := services.GetMatchInnings(matchID)
+	if err != nil {
+		internalServerError(c, "Unable to fetch innings right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"innings": innings,
+	})
+}
+
+func GetMatchScorecard(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		badRequest(c, "match id is required", nil)
+		return
+	}
+
+	scorecard, err := services.GetMatchScorecard(matchID)
+	if err != nil {
+		internalServerError(c, "Unable to fetch scorecard right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    scorecard,
+	})
+}
+
+func StartMatch(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		badRequest(c, "match id is required", nil)
+		return
+	}
+
+	innings, err := services.StartMatch(matchID)
+	if err != nil {
+		internalServerError(c, "Unable to start match right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Match started successfully",
+		"innings": innings,
+	})
+}
+
+func GetMatchSquad(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		badRequest(c, "match id is required", nil)
+		return
+	}
+
+	squad, err := services.GetMatchSquad(matchID)
+	if err != nil {
+		internalServerError(c, "Unable to fetch match squad right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"squad":   squad,
+	})
+}
+
+func UpdateMatchLineup(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		badRequest(c, "match id is required", nil)
+		return
+	}
+
+	var req dto.UpdateMatchLineupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, "Please provide valid lineup details", err)
+		return
+	}
+
+	if err := services.UpdateMatchLineup(matchID, req); err != nil {
+		internalServerError(c, "Unable to update lineup right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Lineup updated successfully",
 	})
 }

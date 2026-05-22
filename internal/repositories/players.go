@@ -11,16 +11,16 @@ func CreatePlayer(player *models.MatchPlayer, teamID uuid.UUID) error {
 
 	query := `
 	INSERT INTO team_players (
-		
 		player_id,
-	
-		
 		team_id,
-		
 		is_captain
-	
 	)
 	VALUES ($1, $2, $3)
+	ON CONFLICT (team_id, player_id)
+	DO UPDATE SET
+		is_captain = EXCLUDED.is_captain,
+		deleted_at = NULL,
+		updated_at = NOW()
 	RETURNING id,team_id, created_at
 	`
 
@@ -41,9 +41,9 @@ func CreatePlayer(player *models.MatchPlayer, teamID uuid.UUID) error {
 func DeletePlayer(playerID string, userID string) (bool, error) {
 	query := `
 	UPDATE team_players
-	SET removed_at = NOW()
+	SET deleted_at = NOW(), updated_at = NOW()
 	WHERE id = $1
-	AND removed_at IS NULL
+	AND deleted_at IS NULL
 	`
 
 	_ = userID
