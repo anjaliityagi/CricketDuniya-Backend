@@ -32,7 +32,7 @@ func Signup(req dto.SignupRequest) (*models.User, error) {
 	user := &models.User{
 		Name:         req.Name,
 		PhoneNumber:  req.PhoneNumber,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: func() *string { s := string(hashedPassword); return &s }(),
 	}
 
 	err = repositories.CreateUser(user)
@@ -49,9 +49,12 @@ func Login(req dto.LoginRequest) (string, error) {
 	if err != nil {
 		return "", errors.New("invalid credentials")
 	}
+	if user.PasswordHash == nil || *user.PasswordHash == "" {
+		return "", errors.New("account not activated")
+	}
 
 	err = bcrypt.CompareHashAndPassword(
-		[]byte(user.PasswordHash),
+		[]byte(*user.PasswordHash),
 		[]byte(req.Password),
 	)
 

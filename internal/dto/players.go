@@ -3,7 +3,11 @@ package dto
 import "time"
 
 type CreatePlayerRequest struct {
-	PLayerID *string `json:"player_id"`
+	PlayerID     *string `json:"player_id"`
+	Name         *string `json:"name"`
+	PhoneNumber  *string `json:"phone_number"`
+	BattingStyle *string `json:"batting_style"`
+	BowlingStyle *string `json:"bowling_style"`
 }
 
 type TeamPlayerResponse struct {

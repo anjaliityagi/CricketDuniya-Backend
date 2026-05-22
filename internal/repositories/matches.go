@@ -185,8 +185,7 @@ func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
 		COALESCE(total_wickets, 0) AS total_wickets
 	FROM innings
 	WHERE match_id = $1
-	ORDER BY innings_no ASC, created_at ASC
-	`
+	ORDER BY innings_no ASC`
 
 	if err := database.DB.Select(&innings, query, matchID); err != nil {
 		return nil, err
@@ -437,8 +436,7 @@ func GetMatchInningsIDs(matchID string) ([]string, error) {
 		SELECT id
 		FROM innings
 		WHERE match_id = $1
-		ORDER BY created_at ASC
-	`, matchID)
+		ORDER BY innings_no ASC`, matchID)
 	if err != nil {
 		return nil, err
 	}

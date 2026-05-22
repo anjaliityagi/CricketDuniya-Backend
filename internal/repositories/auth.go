@@ -41,6 +41,7 @@ func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 		name,
 		phone_number,
 		password_hash,
+		COALESCE(is_phone_verified, FALSE) AS is_phone_verified,
 		created_at,
 		updated_at
 	FROM users
@@ -50,6 +51,24 @@ func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 	err := database.DB.Get(&user, query, phoneNumber)
 	if err != nil {
 		fmt.Println(err)
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func GetOrCreateLiteUserByPhone(name, phoneNumber string) (*models.User, error) {
+	var user models.User
+
+	query := `
+	INSERT INTO users (name, phone_number, password_hash, is_phone_verified)
+	VALUES ($1, $2, NULL, FALSE)
+	ON CONFLICT (phone_number)
+	DO UPDATE SET name = users.name
+	RETURNING id, name, phone_number, password_hash, COALESCE(is_phone_verified, FALSE) AS is_phone_verified, created_at, updated_at
+	`
+
+	if err := database.DB.Get(&user, query, name, phoneNumber); err != nil {
 		return nil, err
 	}
 

@@ -49,7 +49,7 @@ func upsertFantasyPoints(tx *sqlx.Tx, matchID, matchPlayerID string, points int,
 		return nil
 	}
 	query := `UPDATE player_match_stats
-		SET` + bucket + ` = COALESCE(` + bucket + `, 0) + $3,
+		SET ` + bucket + ` = COALESCE(` + bucket + `, 0) + $3,
 			fantasy_points = COALESCE(fantasy_points, 0) + $3,
 			updated_at = NOW()
 		WHERE match_id = $1
