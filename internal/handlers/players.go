@@ -96,3 +96,37 @@ func AddPlayersToTeams(c *gin.Context) {
 		"message": "players added successfully",
 	})
 }
+
+func AssignCaptain(c *gin.Context) {
+
+	playerID := c.Param("player_id")
+
+	var req dto.AssignCaptainRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+
+		return
+	}
+
+	err := services.AssignCaptain(
+		req.TeamID,
+		playerID,
+	)
+
+	if err != nil {
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "captain assigned successfully",
+	})
+}

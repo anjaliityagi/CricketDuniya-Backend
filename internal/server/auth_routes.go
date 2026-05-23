@@ -43,6 +43,7 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 			//protected.POST("/api/v1/ball/update", handlers.UpdateBall)
 
 			protected.POST("/team-players", handlers.AddPlayersToTeams)
+			protected.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)
 
 		}
 	}

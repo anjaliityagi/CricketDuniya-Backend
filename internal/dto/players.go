@@ -44,3 +44,7 @@ type AddTeamPlayerRequest struct {
 	Name        string  `json:"name,omitempty"`
 	PhoneNumber string  `json:"phone_number,omitempty"`
 }
+
+type AssignCaptainRequest struct {
+	TeamID string `json:"team_id" binding:"required"`
+}

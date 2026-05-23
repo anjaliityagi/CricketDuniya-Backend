@@ -80,9 +80,7 @@ func AddPlayerToTeam(
 	return teamPlayer, nil
 }
 
-func AddPlayersToTeams(
-	req dto.AddPlayersRequest,
-) error {
+func AddPlayersToTeams(req dto.AddPlayersRequest) error {
 
 	for _, team := range req {
 
@@ -106,9 +104,7 @@ func AddPlayersToTeams(
 				continue
 			}
 
-			existingUser, err := repositories.GetUserByPhoneNumber(
-				player.PhoneNumber,
-			)
+			existingUser, err := repositories.GetUserByPhoneNumber(player.PhoneNumber)
 
 			if err != nil {
 				return err
@@ -154,6 +150,13 @@ func AddPlayersToTeams(
 	return nil
 }
 
-func GetPlayersByTeam(teamID string) ([]dto.TeamPlayerResponse, error) {
-	return repositories.GetPlayersByTeamID(teamID)
+func AssignCaptain(
+	teamID string,
+	playerID string,
+) error {
+
+	return repositories.AssignCaptain(
+		teamID,
+		playerID,
+	)
 }
