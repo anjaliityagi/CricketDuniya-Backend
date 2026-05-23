@@ -261,7 +261,7 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		COALESCE(delivery_no, delivery_number, 1) AS delivery_no,
 		COALESCE(ball_type, 'normal') AS ball_type,
 		COALESCE(total_runs, 0) AS total_runs,
-		COALESCE(is_wicket, FALSE) AS is_wicket,
+-- 		COALESCE(is_wicket, FALSE) AS is_wicket,
 		striker_id,
 		non_striker_id,
 		bowler_id,
