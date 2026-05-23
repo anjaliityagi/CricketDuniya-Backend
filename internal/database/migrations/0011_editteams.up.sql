@@ -1,6 +1,6 @@
-BEGIN ;
+BEGIN;
 
+ALTER TABLE teams
+    ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id);
 
- Alter TABLE if exists teams ADD  COLUMN created_by uuid references users(id);
-
-COMMIT ;
+COMMIT;

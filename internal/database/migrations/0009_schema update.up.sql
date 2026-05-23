@@ -16,7 +16,6 @@ ALTER TABLE users
     DROP COLUMN IF EXISTS bowling_style,
     DROP COLUMN IF EXISTS role;
 
-
 DO $$
     BEGIN
         IF EXISTS (
@@ -33,29 +32,57 @@ DO $$
 ALTER TABLE teams
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
+CREATE TABLE IF NOT EXISTS team_players (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    is_captain BOOLEAN DEFAULT FALSE,
+    batting_order INT,
+    is_wicket_keeper BOOLEAN DEFAULT FALSE,
+    is_playing_xi BOOLEAN DEFAULT TRUE,
+    is_substitute BOOLEAN DEFAULT FALSE,
+    is_guest BOOLEAN DEFAULT FALSE,
+    removed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    deleted_at TIMESTAMP
+);
 
 DO $$
     BEGIN
-        IF EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_name = 'team_players'
-              AND column_name = 'player_id'
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'unique_team_user'
         ) THEN
             ALTER TABLE team_players
-                RENAME COLUMN player_id TO user_id;
+                ADD CONSTRAINT unique_team_user UNIQUE (team_id, user_id);
         END IF;
     END $$;
 
-ALTER TABLE team_players
-    ADD CONSTRAINT unique_team_user
-        UNIQUE(team_id, user_id);
-
+INSERT INTO team_players (
+    team_id,
+    user_id,
+    is_captain,
+    is_wicket_keeper,
+    is_playing_xi,
+    is_substitute,
+    created_at
+)
+SELECT DISTINCT
+    mp.team_id,
+    mp.user_id,
+    COALESCE(mp.is_captain, FALSE),
+    COALESCE(mp.is_wicketkeeper, FALSE),
+    COALESCE(mp.is_playing_xi, TRUE),
+    COALESCE(mp.is_substitute, FALSE),
+    mp.created_at
+FROM match_players mp
+WHERE mp.team_id IS NOT NULL
+  AND mp.user_id IS NOT NULL
+ON CONFLICT (team_id, user_id) DO NOTHING;
 
 ALTER TABLE matches
     DROP COLUMN IF EXISTS tournament_id,
-    DROP COLUMN IF EXISTS team_a_id,
-    DROP COLUMN IF EXISTS team_b_id,
     DROP COLUMN IF EXISTS current_innings,
     DROP COLUMN IF EXISTS toss_completed,
     DROP COLUMN IF EXISTS winning_margin_runs,
@@ -70,8 +97,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='matches'
-              AND column_name='venue'
+            WHERE table_name = 'matches'
+              AND column_name = 'venue'
         ) THEN
             ALTER TABLE matches
                 RENAME COLUMN venue TO location;
@@ -82,8 +109,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='matches'
-              AND column_name='overs_per_side'
+            WHERE table_name = 'matches'
+              AND column_name = 'overs_per_side'
         ) THEN
             ALTER TABLE matches
                 RENAME COLUMN overs_per_side TO overs_per_innings;
@@ -94,8 +121,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='matches'
-              AND column_name='match_date'
+            WHERE table_name = 'matches'
+              AND column_name = 'match_date'
         ) THEN
             ALTER TABLE matches
                 RENAME COLUMN match_date TO started_at;
@@ -106,8 +133,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='matches'
-              AND column_name='match_ended_at'
+            WHERE table_name = 'matches'
+              AND column_name = 'match_ended_at'
         ) THEN
             ALTER TABLE matches
                 RENAME COLUMN match_ended_at TO completed_at;
@@ -118,8 +145,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='matches'
-              AND column_name='winner_team_id'
+            WHERE table_name = 'matches'
+              AND column_name = 'winner_team_id'
         ) THEN
             ALTER TABLE matches
                 RENAME COLUMN winner_team_id TO winner_match_team_id;
@@ -133,57 +160,73 @@ ALTER TABLE matches
     ADD COLUMN IF NOT EXISTS worst_player_user_id UUID REFERENCES users(id),
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
-ALTER TABLE match_teams
-    DROP COLUMN IF EXISTS target_score;
-
 DO $$
     BEGIN
         IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='match_teams'
-              AND column_name='source_team_id'
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_name = 'match_teams'
         ) THEN
             ALTER TABLE match_teams
-                RENAME COLUMN source_team_id TO original_team_id;
+                DROP COLUMN IF EXISTS target_score;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'match_teams'
+                  AND column_name = 'source_team_id'
+            ) THEN
+                ALTER TABLE match_teams
+                    RENAME COLUMN source_team_id TO original_team_id;
+            END IF;
         END IF;
     END $$;
-
-
-ALTER TABLE match_team_players
-    DROP COLUMN IF EXISTS match_id,
-    DROP COLUMN IF EXISTS player_name,
-    DROP COLUMN IF EXISTS phone,
-    DROP COLUMN IF EXISTS is_host,
-    DROP COLUMN IF EXISTS role,
-    DROP COLUMN IF EXISTS player_id,
-    DROP COLUMN IF EXISTS phone_number,
-    DROP COLUMN IF EXISTS is_wicketkeeper,
-    DROP COLUMN IF EXISTS team_id;
 
 DO $$
     BEGIN
         IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='match_team_players'
-              AND column_name='batting_position'
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_name = 'match_team_players'
         ) THEN
             ALTER TABLE match_team_players
-                RENAME COLUMN batting_position TO batting_order;
+                DROP COLUMN IF EXISTS match_id,
+                DROP COLUMN IF EXISTS player_name,
+                DROP COLUMN IF EXISTS phone,
+                DROP COLUMN IF EXISTS is_host,
+                DROP COLUMN IF EXISTS role,
+                DROP COLUMN IF EXISTS player_id,
+                DROP COLUMN IF EXISTS phone_number,
+                DROP COLUMN IF EXISTS is_wicketkeeper,
+                DROP COLUMN IF EXISTS team_id;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'match_team_players'
+                  AND column_name = 'batting_position'
+            ) THEN
+                ALTER TABLE match_team_players
+                    RENAME COLUMN batting_position TO batting_order;
+            END IF;
+
+            ALTER TABLE match_team_players
+                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'unique_match_team_user'
+            ) THEN
+                ALTER TABLE match_team_players
+                    ADD CONSTRAINT unique_match_team_user
+                        UNIQUE (match_team_id, user_id);
+            END IF;
+
+            DROP INDEX IF EXISTS unique_match_team_captain;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_match_team_captain
+                ON match_team_players (match_team_id)
+                WHERE is_captain = TRUE;
         END IF;
     END $$;
-
-ALTER TABLE match_team_players
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
-
-ALTER TABLE match_team_players
-    ADD CONSTRAINT unique_match_team_user
-        UNIQUE(match_team_id, user_id);
-
-DROP INDEX IF EXISTS unique_match_team_captain;
-
-CREATE UNIQUE INDEX unique_match_team_captain
-    ON match_team_players(match_team_id)
-    WHERE is_captain = TRUE;
 
 ALTER TABLE innings
     DROP COLUMN IF EXISTS batting_team_id,
@@ -196,8 +239,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='innings'
-              AND column_name='innings_number'
+            WHERE table_name = 'innings'
+              AND column_name = 'innings_number'
         ) THEN
             ALTER TABLE innings
                 RENAME COLUMN innings_number TO innings_no;
@@ -208,8 +251,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='innings'
-              AND column_name='wickets'
+            WHERE table_name = 'innings'
+              AND column_name = 'wickets'
         ) THEN
             ALTER TABLE innings
                 RENAME COLUMN wickets TO total_wickets;
@@ -220,8 +263,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='innings'
-              AND column_name='ended_at'
+            WHERE table_name = 'innings'
+              AND column_name = 'ended_at'
         ) THEN
             ALTER TABLE innings
                 RENAME COLUMN ended_at TO completed_at;
@@ -232,124 +275,118 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.tables
-            WHERE table_name='balls'
+            WHERE table_schema = 'public'
+              AND table_name = 'deliveries'
         ) THEN
-            ALTER TABLE balls
-                RENAME TO ball_events;
-        END IF;
-    END $$;
-
-ALTER TABLE ball_events
-    DROP COLUMN IF EXISTS over_id,
-    DROP COLUMN IF EXISTS extra_type,
-    DROP COLUMN IF EXISTS wicket,
-    DROP COLUMN IF EXISTS wicket_type,
-    DROP COLUMN IF EXISTS is_boundary,
-    DROP COLUMN IF EXISTS is_six,
-    DROP COLUMN IF EXISTS total_runs,
-    DROP COLUMN IF EXISTS is_valid_ball,
-    DROP COLUMN IF EXISTS is_void,
-    DROP COLUMN IF EXISTS void_reason;
-
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='ball_events'
-              AND column_name='striker_id'
+            ALTER TABLE deliveries RENAME TO ball_events;
+        ELSIF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_name = 'balls'
         ) THEN
-            ALTER TABLE ball_events
-                RENAME COLUMN striker_id TO striker_match_player_id;
+            ALTER TABLE balls RENAME TO ball_events;
         END IF;
     END $$;
 
 DO $$
     BEGIN
         IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='ball_events'
-              AND column_name='non_striker_id'
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_name = 'ball_events'
         ) THEN
             ALTER TABLE ball_events
-                RENAME COLUMN non_striker_id TO non_striker_match_player_id;
-        END IF;
-    END $$;
+                DROP COLUMN IF EXISTS over_id,
+                DROP COLUMN IF EXISTS extra_type,
+                DROP COLUMN IF EXISTS wicket,
+                DROP COLUMN IF EXISTS wicket_type,
+                DROP COLUMN IF EXISTS is_boundary,
+                DROP COLUMN IF EXISTS is_six,
+                DROP COLUMN IF EXISTS total_runs,
+                DROP COLUMN IF EXISTS is_valid_ball,
+                DROP COLUMN IF EXISTS is_void,
+                DROP COLUMN IF EXISTS void_reason;
 
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='ball_events'
-              AND column_name='bowler_id'
-        ) THEN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'ball_events'
+                  AND column_name = 'striker_id'
+            ) THEN
+                ALTER TABLE ball_events
+                    RENAME COLUMN striker_id TO striker_match_player_id;
+            END IF;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'ball_events'
+                  AND column_name = 'non_striker_id'
+            ) THEN
+                ALTER TABLE ball_events
+                    RENAME COLUMN non_striker_id TO non_striker_match_player_id;
+            END IF;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'ball_events'
+                  AND column_name = 'bowler_id'
+            ) THEN
+                ALTER TABLE ball_events
+                    RENAME COLUMN bowler_id TO bowler_match_player_id;
+            END IF;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'ball_events'
+                  AND column_name = 'player_out_id'
+            ) THEN
+                ALTER TABLE ball_events
+                    RENAME COLUMN player_out_id TO dismissed_match_player_id;
+            END IF;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'ball_events'
+                  AND column_name = 'fielder_id'
+            ) THEN
+                ALTER TABLE ball_events
+                    RENAME COLUMN fielder_id TO fielder_user_id;
+            END IF;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'ball_events'
+                  AND column_name = 'ball_number'
+            ) THEN
+                ALTER TABLE ball_events
+                    RENAME COLUMN ball_number TO ball_no;
+            END IF;
+
             ALTER TABLE ball_events
-                RENAME COLUMN bowler_id TO bowler_match_player_id;
+                ADD COLUMN IF NOT EXISTS match_id UUID REFERENCES matches(id),
+                ADD COLUMN IF NOT EXISTS over_no INT DEFAULT 1,
+                ADD COLUMN IF NOT EXISTS delivery_no INT DEFAULT 1,
+                ADD COLUMN IF NOT EXISTS wides INT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS no_balls INT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS byes INT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS leg_byes INT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS dismissal_type VARCHAR(50),
+                ADD COLUMN IF NOT EXISTS is_legal_delivery BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS deleted_by_user_id UUID REFERENCES users(id),
+                ADD COLUMN IF NOT EXISTS created_by_user_id UUID REFERENCES users(id);
         END IF;
     END $$;
-
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='ball_events'
-              AND column_name='player_out_id'
-        ) THEN
-            ALTER TABLE ball_events
-                RENAME COLUMN player_out_id TO dismissed_match_player_id;
-        END IF;
-    END $$;
-
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='ball_events'
-              AND column_name='fielder_id'
-        ) THEN
-            ALTER TABLE ball_events
-                RENAME COLUMN fielder_id TO fielder_user_id;
-        END IF;
-    END $$;
-
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='ball_events'
-              AND column_name='ball_number'
-        ) THEN
-            ALTER TABLE ball_events
-                RENAME COLUMN ball_number TO ball_no;
-        END IF;
-    END $$;
-
-ALTER TABLE ball_events
-    ADD COLUMN IF NOT EXISTS match_id UUID REFERENCES matches(id),
-    ADD COLUMN IF NOT EXISTS batting_match_team_id UUID REFERENCES match_teams(id),
-    ADD COLUMN IF NOT EXISTS bowling_match_team_id UUID REFERENCES match_teams(id),
-    ADD COLUMN IF NOT EXISTS over_no INT DEFAULT 1,
-    ADD COLUMN IF NOT EXISTS delivery_no INT DEFAULT 1,
-    ADD COLUMN IF NOT EXISTS wides INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS no_balls INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS byes INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS leg_byes INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS dismissal_type VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS is_legal_delivery BOOLEAN DEFAULT TRUE,
-    ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS deleted_by_user_id UUID REFERENCES users(id),
-    ADD COLUMN IF NOT EXISTS created_by_user_id UUID REFERENCES users(id);
 
 ALTER TABLE player_match_stats
-    DROP COLUMN IF EXISTS player_id,
     DROP COLUMN IF EXISTS dismissal_type;
 
 DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='player_match_stats'
-              AND column_name='runs'
+            WHERE table_name = 'player_match_stats'
+              AND column_name = 'runs'
         ) THEN
             ALTER TABLE player_match_stats
                 RENAME COLUMN runs TO runs_scored;
@@ -360,8 +397,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='player_match_stats'
-              AND column_name='wickets'
+            WHERE table_name = 'player_match_stats'
+              AND column_name = 'wickets'
         ) THEN
             ALTER TABLE player_match_stats
                 RENAME COLUMN wickets TO wickets_taken;
@@ -372,8 +409,8 @@ DO $$
     BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name='player_match_stats'
-              AND column_name='run_outs'
+            WHERE table_name = 'player_match_stats'
+              AND column_name = 'run_outs'
         ) THEN
             ALTER TABLE player_match_stats
                 RENAME COLUMN run_outs TO runouts;
@@ -385,28 +422,21 @@ ALTER TABLE player_match_stats
     ADD COLUMN IF NOT EXISTS bowling_style VARCHAR(50),
     ADD COLUMN IF NOT EXISTS batting_points INT DEFAULT 0,
     ADD COLUMN IF NOT EXISTS bowling_points INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS fielding_points INT DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS fielding_points INT DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
 DROP TABLE IF EXISTS super_overs CASCADE;
 
-CREATE TABLE super_overs (
-                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-                             match_id UUID NOT NULL REFERENCES matches(id),
-
-                             innings_id UUID REFERENCES innings(id),
-
-                             batting_match_team_id UUID REFERENCES match_teams(id),
-
-                             bowling_match_team_id UUID REFERENCES match_teams(id),
-
-                             winner_match_team_id UUID REFERENCES match_teams(id),
-
-                             super_over_no INT DEFAULT 1,
-
-                             created_at TIMESTAMP DEFAULT NOW(),
-
-                             updated_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS super_overs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    match_id UUID NOT NULL REFERENCES matches(id),
+    innings_id UUID REFERENCES innings(id),
+    batting_match_team_id UUID,
+    bowling_match_team_id UUID,
+    winner_match_team_id UUID,
+    super_over_no INT DEFAULT 1,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
 DO $$
@@ -423,44 +453,30 @@ DO $$
                 'strike_rate',
                 'result',
                 'penalty'
-                );
+            );
         END IF;
-    END$$;
+    END $$;
 
 CREATE TABLE IF NOT EXISTS point_events (
-                                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-                                            match_id UUID NOT NULL REFERENCES matches(id),
-
-                                            user_id UUID NOT NULL REFERENCES users(id),
-
-                                            ball_event_id UUID REFERENCES ball_events(id),
-
-                                            category point_category NOT NULL,
-
-                                            rule_name VARCHAR(100) NOT NULL,
-
-                                            points INT NOT NULL,
-
-                                            created_at TIMESTAMP DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    match_id UUID NOT NULL REFERENCES matches(id),
+    user_id UUID NOT NULL REFERENCES users(id),
+    ball_event_id UUID REFERENCES ball_events(id),
+    category point_category NOT NULL,
+    rule_name VARCHAR(100) NOT NULL,
+    points INT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
-                                          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-                                          user_id UUID REFERENCES users(id),
-
-                                          entity_type VARCHAR(50),
-
-                                          entity_id UUID,
-
-                                          action VARCHAR(50),
-
-                                          old_data JSONB,
-
-                                          new_data JSONB,
-
-                                          created_at TIMESTAMP DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    entity_type VARCHAR(50),
+    entity_id UUID,
+    action VARCHAR(50),
+    old_data JSONB,
+    new_data JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_ball_events_match
@@ -468,9 +484,6 @@ CREATE INDEX IF NOT EXISTS idx_ball_events_match
 
 CREATE INDEX IF NOT EXISTS idx_ball_events_over
     ON ball_events(innings_id, over_no, ball_no);
-
-CREATE INDEX IF NOT EXISTS idx_player_match_stats_user
-    ON player_match_stats(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_point_events_user
     ON point_events(user_id);

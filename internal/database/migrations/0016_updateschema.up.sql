@@ -2,7 +2,6 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-
 CREATE TABLE IF NOT EXISTS match_teams
 (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -15,7 +14,6 @@ CREATE TABLE IF NOT EXISTS match_teams
     deleted_at       TIMESTAMP,
     UNIQUE (match_id, display_name)
 );
-
 
 CREATE TABLE IF NOT EXISTS match_team_players
 (
@@ -36,17 +34,28 @@ CREATE TABLE IF NOT EXISTS match_team_players
     UNIQUE (match_team_id, user_id)
 );
 
-
 DROP INDEX IF EXISTS uq_match_team_players_captain;
-CREATE UNIQUE INDEX uq_match_team_players_captain
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_team_players_captain
     ON match_team_players (match_team_id)
     WHERE is_captain = TRUE AND deleted_at IS NULL;
 
+ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS toss_winner_match_team_id UUID REFERENCES match_teams (id);
+
+DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'matches'
+              AND column_name = 'winner_match_team_id'
+        ) THEN
+            ALTER TABLE matches
+                ADD COLUMN winner_match_team_id UUID REFERENCES match_teams (id);
+        END IF;
+    END $$;
 
 ALTER TABLE matches
-    ADD COLUMN IF NOT EXISTS scorer_user_id UUID REFERENCES users (id),
-    ADD COLUMN IF NOT EXISTS toss_winner_match_team_id UUID REFERENCES match_teams (id),
-    ADD COLUMN IF NOT EXISTS winner_match_team_id UUID REFERENCES match_teams (id),
     ADD COLUMN IF NOT EXISTS player_of_match_user_id UUID REFERENCES users (id),
     ADD COLUMN IF NOT EXISTS worst_player_user_id UUID REFERENCES users (id),
     ADD COLUMN IF NOT EXISTS started_at TIMESTAMP,
@@ -63,44 +72,60 @@ ALTER TABLE ball_events
     ADD COLUMN IF NOT EXISTS non_striker_match_player_id UUID REFERENCES match_team_players (id),
     ADD COLUMN IF NOT EXISTS bowler_match_player_id UUID REFERENCES match_team_players (id),
     ADD COLUMN IF NOT EXISTS dismissed_match_player_id UUID REFERENCES match_team_players (id),
-    ADD COLUMN IF NOT EXISTS dismissal_type VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS is_legal_delivery BOOLEAN DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS scoring_version VARCHAR(20) DEFAULT 'v1';
 
-UPDATE ball_events
-SET striker_match_player_id = striker_id
-WHERE striker_match_player_id IS NULL
-  AND striker_id IS NOT NULL;
+DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ball_events'
+              AND column_name = 'striker_id'
+        ) THEN
+            UPDATE ball_events
+            SET striker_match_player_id = striker_id
+            WHERE striker_match_player_id IS NULL
+              AND striker_id IS NOT NULL;
+        END IF;
 
-UPDATE ball_events
-SET non_striker_match_player_id = non_striker_id
-WHERE non_striker_match_player_id IS NULL
-  AND non_striker_id IS NOT NULL;
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ball_events'
+              AND column_name = 'non_striker_id'
+        ) THEN
+            UPDATE ball_events
+            SET non_striker_match_player_id = non_striker_id
+            WHERE non_striker_match_player_id IS NULL
+              AND non_striker_id IS NOT NULL;
+        END IF;
 
-UPDATE ball_events
-SET bowler_match_player_id = bowler_id
-WHERE bowler_match_player_id IS NULL
-  AND bowler_id IS NOT NULL;
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ball_events'
+              AND column_name = 'bowler_id'
+        ) THEN
+            UPDATE ball_events
+            SET bowler_match_player_id = bowler_id
+            WHERE bowler_match_player_id IS NULL
+              AND bowler_id IS NOT NULL;
+        END IF;
 
-UPDATE ball_events
-SET dismissed_match_player_id = dismissed_player_id
-WHERE dismissed_match_player_id IS NULL
-  AND dismissed_player_id IS NOT NULL;
-
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ball_events'
+              AND column_name = 'dismissed_player_id'
+        ) THEN
+            UPDATE ball_events
+            SET dismissed_match_player_id = dismissed_player_id
+            WHERE dismissed_match_player_id IS NULL
+              AND dismissed_player_id IS NOT NULL;
+        END IF;
+    END $$;
 
 ALTER TABLE player_match_stats
     ADD COLUMN IF NOT EXISTS match_team_player_id UUID REFERENCES match_team_players (id),
-    ADD COLUMN IF NOT EXISTS batting_points INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS bowling_points INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS fielding_points INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS result_points INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+    ADD COLUMN IF NOT EXISTS result_points INT DEFAULT 0;
 
-
-
-
-DO
-$$
+DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'point_category') THEN
             CREATE TYPE point_category AS ENUM (
@@ -112,10 +137,9 @@ $$
                 'strike_rate',
                 'result',
                 'penalty'
-                );
+            );
         END IF;
-    END
-$$;
+    END $$;
 
 CREATE TABLE IF NOT EXISTS point_events
 (
