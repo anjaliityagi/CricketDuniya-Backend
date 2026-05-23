@@ -4,6 +4,8 @@ import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/dto"
 	"CricketDuniya-Backend/internal/models"
+	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -37,9 +39,10 @@ func CreateGuestUser(user *models.User) error {
 	INSERT INTO users (
 		name,
 		phone_number,
-	
+		password_hash,
+		is_phone_verified
 	)
-	VALUES ($1, $2)
+	VALUES ($1, $2, NULL, FALSE)
 	RETURNING id, created_at, updated_at
 	`
 
@@ -47,7 +50,6 @@ func CreateGuestUser(user *models.User) error {
 		query,
 		user.Name,
 		user.PhoneNumber,
-		user.PasswordHash,
 	).Scan(
 		&user.ID,
 		&user.CreatedAt,
@@ -73,6 +75,9 @@ func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 
 	err := database.DB.Get(&user, query, phoneNumber)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		fmt.Println(err)
 		return nil, err
 	}

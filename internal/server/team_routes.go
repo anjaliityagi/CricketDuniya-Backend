@@ -14,6 +14,6 @@ func registerTeamRoutes(rg *gin.RouterGroup) {
 
 	teams.POST("", handlers.CreateTeam)
 	teams.GET("/:id", handlers.GetTeam)
-	//teams.GET("/:id/players", handlers.GetTeamPlayers)
+	teams.GET("/:id/players", handlers.GetTeamPlayers)
 	teams.GET("", handlers.GetTeams)
 }

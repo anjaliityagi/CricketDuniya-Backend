@@ -58,18 +58,18 @@ func GetTeams(c *gin.Context) {
 	c.JSON(http.StatusOK, teams)
 }
 
-//func GetTeamPlayers(c *gin.Context) {
-//	teamID := c.Param("id")
-//	if teamID == "" {
-//		c.JSON(http.StatusBadRequest, gin.H{"error": "team id is required"})
-//		return
-//	}
-//
-//	players, err := services.GetPlayersByTeam(teamID)
-//	if err != nil {
-//		internalServerError(c, "Unable to fetch team players right now. Please try again", err)
-//		return
-//	}
-//
-//	c.JSON(http.StatusOK, players)
-//}
+func GetTeamPlayers(c *gin.Context) {
+	teamID := c.Param("id")
+	if teamID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "team id is required"})
+		return
+	}
+
+	players, err := services.GetPlayersByTeam(teamID)
+	if err != nil {
+		internalServerError(c, "Unable to fetch team players right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, players)
+}
