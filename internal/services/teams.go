@@ -4,7 +4,6 @@ import (
 	"CricketDuniya-Backend/internal/dto"
 	"CricketDuniya-Backend/internal/models"
 	"CricketDuniya-Backend/internal/repositories"
-	"fmt"
 )
 
 func CreateTeam(req dto.CreateTeamRequest, userID string) (*models.Team, error) {
@@ -14,7 +13,6 @@ func CreateTeam(req dto.CreateTeamRequest, userID string) (*models.Team, error) 
 		CreatedBy: &userID,
 	}
 	err := repositories.CreateTeam(team)
-	fmt.Println(team.ID)
 	if err != nil {
 		return nil, err
 	}

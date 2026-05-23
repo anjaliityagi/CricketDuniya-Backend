@@ -198,3 +198,33 @@ func UpdateMatchLineup(c *gin.Context) {
 		"message": "Lineup updated successfully",
 	})
 }
+
+func SetFirstPickTeam(c *gin.Context) {
+	matchID := c.Param("id")
+	if matchID == "" {
+		badRequest(c, "match id is required", nil)
+		return
+	}
+
+	var req dto.SetFirstPickRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, "Please provide valid first pick details", err)
+		return
+	}
+
+	match, err := services.SetFirstPickTeam(matchID, req.FirstPickTeamID)
+	if err != nil {
+		if err.Error() == "first pick team must be one of the match teams" {
+			badRequest(c, "First pick team must be one of the match teams", err)
+			return
+		}
+		internalServerError(c, "Unable to save first pick right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "First pick team saved successfully",
+		"data":    match,
+	})
+}

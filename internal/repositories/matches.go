@@ -6,6 +6,8 @@ import (
 	"CricketDuniya-Backend/internal/models"
 	"fmt"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type MatchTeamSnapshot struct {
@@ -46,6 +48,36 @@ func CreateMatch(match *models.Match) error {
 	)
 }
 
+func CreateMatchTx(tx *sqlx.Tx, match *models.Match) error {
+	query := `
+	INSERT INTO matches (
+	           team_a_id,
+	                     team_b_id,
+		host_user_id,
+		location,
+		match_date,
+		overs_per_innings,
+		status
+	)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
+	RETURNING id, created_at
+	`
+
+	return tx.QueryRowx(
+		query,
+		match.TeamAID,
+		match.TeamBID,
+		match.HostUserID,
+		match.Location,
+		match.MatchDate,
+		match.OversPerInnings,
+		match.Status,
+	).Scan(
+		&match.ID,
+		&match.CreatedAt,
+	)
+}
+
 func CreateMatchSnapshots(matchID string, teamAID string, teamBID string) (string, string, error) {
 	_ = matchID
 	return teamAID, teamBID, nil
@@ -67,6 +99,7 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 			m.match_date,
 			m.overs_per_innings,
 			m.toss_decision,
+			m.toss_winner_team_id,
 			m.winner_match_team_id
 		FROM matches m
 		LEFT JOIN teams ta_legacy ON ta_legacy.id = m.team_a_id
@@ -157,6 +190,8 @@ func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
 		m.match_date,
 		m.overs_per_innings,
 		m.toss_decision,
+		m.toss_winner_team_id,
+		m.first_pick_team_id,
 		m.winner_match_team_id
 	FROM matches m
 	LEFT JOIN teams ta ON ta.id = m.team_a_id
@@ -169,6 +204,17 @@ func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
 	}
 
 	return &match, nil
+}
+
+func UpdateFirstPickTeam(matchID string, firstPickTeamID string) error {
+	query := `
+	UPDATE matches
+	SET first_pick_team_id = $1
+	WHERE id = $2
+	`
+
+	_, err := database.DB.Exec(query, firstPickTeamID, matchID)
+	return err
 }
 
 func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {

@@ -33,5 +33,9 @@ func GetPlayersByTeamID(teamID string) ([]dto.TeamPlayerResponse, error) {
 		return nil, err
 	}
 
+	if players == nil {
+		players = []dto.TeamPlayerResponse{}
+	}
+
 	return players, nil
 }

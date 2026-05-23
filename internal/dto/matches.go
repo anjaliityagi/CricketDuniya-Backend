@@ -39,7 +39,15 @@ type MatchResponse struct {
 
 	TossDecision *string `db:"toss_decision" json:"toss_decision"`
 
+	TossWinnerTeamID *string `db:"toss_winner_team_id" json:"toss_winner_team_id"`
+
+	FirstPickTeamID *string `db:"first_pick_team_id" json:"first_pick_team_id"`
+
 	WinnerTeamID *string `db:"winner_match_team_id" json:"winner_match_team_id"`
+}
+
+type SetFirstPickRequest struct {
+	FirstPickTeamID string `json:"first_pick_team_id" binding:"required"`
 }
 
 type CompleteMatchRequest struct {

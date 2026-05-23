@@ -21,6 +21,15 @@ func TossHandler(c *gin.Context) {
 	innings, err := services.PerformToss(req)
 
 	if err != nil {
+		switch err.Error() {
+		case "match teams are not ready",
+			"invalid toss decision",
+			"toss winner team id is required",
+			"toss winner team is not part of this match":
+			badRequest(c, err.Error(), err)
+			return
+		}
+
 		internalServerError(c, "Unable to complete toss right now. Please try again", err)
 
 		return

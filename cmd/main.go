@@ -41,7 +41,7 @@ func main() {
 
 	srv := server.SetupRoutes()
 
-	fmt.Println("Server running at http://192.168.0.81:8080")
+	fmt.Println("Server running at http://172.16.2.37:8080")
 
 	if err := srv.Router.Run(":8080"); err != nil {
 		log.Fatal(err)

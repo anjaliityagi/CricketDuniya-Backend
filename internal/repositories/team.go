@@ -3,6 +3,8 @@ package repositories
 import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/models"
+
+	"github.com/jmoiron/sqlx"
 )
 
 func CreateTeam(team *models.Team) error {
@@ -14,6 +16,20 @@ func CreateTeam(team *models.Team) error {
 	`
 
 	return database.DB.QueryRow(
+		query,
+		team.Name,
+		team.CreatedBy,
+	).Scan(&team.ID, &team.CreatedAt)
+}
+
+func CreateTeamTx(tx *sqlx.Tx, team *models.Team) error {
+	query := `
+	INSERT INTO teams (name, created_by)
+	VALUES ($1, $2)
+	RETURNING id, created_at
+	`
+
+	return tx.QueryRow(
 		query,
 		team.Name,
 		team.CreatedBy,
