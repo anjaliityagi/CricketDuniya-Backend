@@ -31,6 +31,29 @@ func CreateUser(user *models.User) error {
 	)
 }
 
+func CreateGuestUser(user *models.User) error {
+
+	query := `
+	INSERT INTO users (
+		name,
+		phone_number,
+	
+	)
+	VALUES ($1, $2)
+	RETURNING id, created_at, updated_at
+	`
+
+	return database.DB.QueryRow(
+		query,
+		user.Name,
+		user.PhoneNumber,
+		user.PasswordHash,
+	).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+}
 func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 
 	var user models.User
@@ -57,23 +80,24 @@ func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 	return &user, nil
 }
 
-func GetOrCreateLiteUserByPhone(name, phoneNumber string) (*models.User, error) {
-	var user models.User
-
-	query := `
-	INSERT INTO users (name, phone_number, password_hash, is_phone_verified)
-	VALUES ($1, $2, NULL, FALSE)
-	ON CONFLICT (phone_number)
-	DO UPDATE SET name = users.name
-	RETURNING id, name, phone_number, password_hash, COALESCE(is_phone_verified, FALSE) AS is_phone_verified, created_at, updated_at
-	`
-
-	if err := database.DB.Get(&user, query, name, phoneNumber); err != nil {
-		return nil, err
-	}
-
-	return &user, nil
-}
+//
+//func GetOrCreateLiteUserByPhone(name, phoneNumber string) (*models.User, error) {
+//	var user models.User
+//
+//	query := `
+//	INSERT INTO users (name, phone_number, password_hash, is_phone_verified)
+//	VALUES ($1, $2, NULL, FALSE)
+//	ON CONFLICT (phone_number)
+//	DO UPDATE SET name = users.name
+//	RETURNING id, name, phone_number, password_hash, COALESCE(is_phone_verified, FALSE) AS is_phone_verified, created_at, updated_at
+//	`
+//
+//	if err := database.DB.Get(&user, query, name, phoneNumber); err != nil {
+//		return nil, err
+//	}
+//
+//	return &user, nil
+//}
 
 func CreateSession(userID string) (*dto.UserSession, error) {
 

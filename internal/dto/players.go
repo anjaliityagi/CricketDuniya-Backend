@@ -26,3 +26,21 @@ type TeamPlayerResponse struct {
 	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
 	RemovedAt      *time.Time `db:"removed_at" json:"removed_at,omitempty"`
 }
+type AddPlayersRequest []TeamPlayersRequest
+
+type TeamPlayersRequest struct {
+	TeamID  string        `json:"team_id" binding:"required"`
+	Players []PlayerInput `json:"players" binding:"required"`
+}
+
+type PlayerInput struct {
+	PlayerID    *string `json:"player_id,omitempty"`
+	Name        string  `json:"name,omitempty"`
+	PhoneNumber string  `json:"phone_number,omitempty"`
+}
+
+type AddTeamPlayerRequest struct {
+	PlayerID    *string `json:"player_id,omitempty"`
+	Name        string  `json:"name,omitempty"`
+	PhoneNumber string  `json:"phone_number,omitempty"`
+}

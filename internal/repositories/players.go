@@ -59,3 +59,24 @@ func DeletePlayer(playerID string, userID string) (bool, error) {
 
 	return rowsAffected > 0, nil
 }
+
+func AddPlayerToTeam(
+	teamPlayer *models.TeamPlayer,
+) error {
+
+	query := `
+	INSERT INTO team_players (
+		team_id,
+		player_id
+	)
+	VALUES ($1, $2)
+	`
+
+	_, err := database.DB.Exec(
+		query,
+		teamPlayer.TeamID,
+		teamPlayer.PlayerID,
+	)
+
+	return err
+}
