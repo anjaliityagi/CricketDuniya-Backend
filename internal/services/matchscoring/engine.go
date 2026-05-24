@@ -73,7 +73,7 @@ func (e *Engine) Process(req dto.BallRequest) (*Update, error) {
 
 func isExtraBall(ballType string) bool {
 	bt := strings.ToLower(strings.TrimSpace(ballType))
-	return bt == "wide" || bt == "no_ball"
+	return bt == "wide" || bt == "no_ball" || bt == "dead_ball" || bt == "retired_hurt"
 }
 
 func upsertBattingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, legalBall, isFour, isSix, isOut bool) error {

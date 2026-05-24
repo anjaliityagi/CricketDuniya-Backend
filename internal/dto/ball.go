@@ -12,7 +12,7 @@ type BallRequest struct {
 
 	BallNo     int    `json:"ball_no"`
 	DeliveryNo int    `json:"delivery_no"`
-	BallType   string `json:"ball_type"` // normal, wide, no_ball, etc
+	BallType   string `json:"ball_type"` // normal, wide, no_ball, bye, leg_bye, dead_ball, wicket, retired_hurt, dead_ball, wicket, retired_hurt
 
 	RunsScored int `json:"runs_scored"`
 	RunsOffBat int `json:"runs_off_bat"`
@@ -45,7 +45,7 @@ type BallInputRequest struct {
 	NonStrikerID *uuid.UUID `json:"non_striker_id"`
 	BowlerID     *uuid.UUID `json:"bowler_id"`
 
-	BallType   string `json:"ball_type" binding:"required"` // normal, wide, no_ball, bye, leg_bye
+	BallType   string `json:"ball_type" binding:"required"` // normal, wide, no_ball, bye, leg_bye, dead_ball, wicket, retired_hurt
 	RunsOffBat int    `json:"runs_off_bat"`
 	Extras     int    `json:"extras"`
 	TotalRuns  int    `json:"total_runs"` // optional; if 0 backend derives from runs_off_bat + extras

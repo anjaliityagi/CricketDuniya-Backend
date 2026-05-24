@@ -45,7 +45,7 @@ func bowling(req dto.BallRequest, ctx scoreContext) int {
 		points -= (ctx.prevConsecutiveBowlerExtras + 1)
 	}
 
-	legalBall := req.BallType != "wide" && req.BallType != "no_ball"
+	legalBall := req.BallType != "wide" && req.BallType != "no_ball" && req.BallType != "dead_ball" && req.BallType != "retired_hurt"
 	overLegalAfter := ctx.overLegalBallsBefore
 	if legalBall {
 		overLegalAfter++

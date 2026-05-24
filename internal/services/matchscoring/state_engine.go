@@ -98,8 +98,9 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	nextNonStriker := activeNonStriker
 	nextBowler := activeBowler
 	needsNextBatter := false
+	needsReplacement := req.IsWicket || strings.EqualFold(req.DismissalType, "retired_hurt")
 
-	if req.IsWicket && req.DismissedPlayerID != nil {
+	if needsReplacement && req.DismissedPlayerID != nil {
 		dismissedID := req.DismissedPlayerID.String()
 		if dismissedID == nextStriker {
 			if req.NextBatterID == nil {
@@ -118,7 +119,8 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	}
 
 	totalRunsForStrike := internalReq.TotalRuns
-	if totalRunsForStrike%2 == 1 {
+	strikeChangesOnBall := internalReq.BallType != "wide" && internalReq.BallType != "no_ball"
+	if strikeChangesOnBall && totalRunsForStrike%2 == 1 {
 		nextStriker, nextNonStriker = nextNonStriker, nextStriker
 	}
 
@@ -386,6 +388,9 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 		byes = req.Extras
 	case "leg_bye":
 		legByes = req.Extras
+	case "dead_ball", "retired_hurt":
+		legal = false
+		totalRuns = 0
 	}
 	deliveryNo := state.CurrentBall + 1
 	if !legal {
@@ -599,84 +604,94 @@ func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRe
 }
 
 func (e *Engine) UndoLastBall(inningsID uuid.UUID) (*dto.InningsStateResponse, error) {
-	var state InningsState
-	if err := database.DB.Get(&state, `SELECT * FROM innings_state WHERE innings_id = $1`, inningsID); err != nil {
-		return nil, err
-	}
-	if state.LegalBalls == 0 && state.TotalRuns == 0 && state.TotalWickets == 0 {
-		return nil, errors.New("nothing to undo")
-	}
-
 	tx, err := database.DB.Beginx()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	var lastBallID string
-	if err := tx.Get(&lastBallID, `
-		SELECT id FROM ball_events
+	meta, err := getInningsMeta(tx, inningsID)
+	if err != nil {
+		return nil, err
+	}
+
+	var state InningsState
+	if err := tx.Get(&state, `SELECT * FROM innings_state WHERE innings_id = $1 FOR UPDATE`, inningsID); err != nil {
+		return nil, err
+	}
+
+	if err := ensureUndoAllowedTx(tx, meta.MatchID, meta.InningsNo); err != nil {
+		return nil, err
+	}
+
+	var deletedBall struct {
+		ID         string  `db:"id"`
+		StrikerID  *string `db:"striker_id"`
+		NonStriker *string `db:"non_striker_id"`
+		BowlerID   *string `db:"bowler_id"`
+	}
+	if err := tx.Get(&deletedBall, `
+		SELECT id, striker_id, non_striker_id, bowler_id
+		FROM ball_events
 		WHERE innings_id = $1 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT 1
 	`, inningsID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("nothing to undo")
+		}
 		return nil, err
 	}
 
-	if _, err := tx.Exec(`UPDATE ball_events SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1`, lastBallID); err != nil {
+	if _, err := tx.Exec(`UPDATE ball_events SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1`, deletedBall.ID); err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(`DELETE FROM point_events WHERE ball_event_id = $1`, lastBallID); err != nil {
+	if _, err := tx.Exec(`DELETE FROM point_events WHERE ball_event_id = $1`, deletedBall.ID); err != nil {
 		return nil, err
 	}
 
-	var rebuilt struct {
-		Runs    int `db:"runs"`
-		Wickets int `db:"wickets"`
-		Legal   int `db:"legal"`
+	if err := rebuildPlayerMatchStatsTx(tx, meta.MatchID); err != nil {
+		return nil, err
 	}
-	if err := tx.Get(&rebuilt, `
-		SELECT COALESCE(SUM(total_runs),0) AS runs,
-			   COALESCE(SUM(CASE WHEN is_wicket THEN 1 ELSE 0 END),0) AS wickets,
-			   COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball') THEN 1 ELSE 0 END),0) AS legal
-		FROM ball_events
-		WHERE innings_id = $1 AND is_deleted = FALSE
-	`, inningsID); err != nil {
+
+	rebuilt, err := getRebuiltInningsTotalsTx(tx, inningsID)
+	if err != nil {
 		return nil, err
 	}
 	over := rebuilt.Legal / 6
 	ball := rebuilt.Legal % 6
 
-	var last struct {
-		Striker    *string `db:"striker_id"`
-		NonStriker *string `db:"non_striker_id"`
-		Bowler     *string `db:"bowler_id"`
-	}
-	_ = tx.Get(&last, `
-		SELECT striker_id, non_striker_id, bowler_id
-		FROM ball_events
-		WHERE innings_id = $1 AND is_deleted = FALSE
-		ORDER BY created_at DESC
-		LIMIT 1
-	`, inningsID)
-
 	if _, err := tx.Exec(`
 		UPDATE innings_state
-		SET total_runs = $2,
-			total_wickets = $3,
-			legal_balls = $4,
-			current_over = $5,
-			current_ball = $6,
-			striker_id = COALESCE($7, striker_id),
-			non_striker_id = COALESCE($8, non_striker_id),
-			bowler_id = COALESCE($9, bowler_id),
+		SET striker_id = $2,
+			non_striker_id = $3,
+			bowler_id = $4,
+			total_runs = $5,
+			total_wickets = $6,
+			legal_balls = $7,
+			current_over = $8,
+			current_ball = $9,
 			status = 'live',
 			updated_at = NOW()
 		WHERE innings_id = $1
-	`, inningsID, rebuilt.Runs, rebuilt.Wickets, rebuilt.Legal, over, ball, last.Striker, last.NonStriker, last.Bowler); err != nil {
+	`, inningsID, deletedBall.StrikerID, deletedBall.NonStriker, deletedBall.BowlerID, rebuilt.Runs, rebuilt.Wickets, rebuilt.Legal, over, ball); err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(`UPDATE innings SET total_runs = $2, total_wickets = $3, status = 'live' WHERE id = $1`, inningsID, rebuilt.Runs, rebuilt.Wickets); err != nil {
+	if _, err := tx.Exec(`
+		UPDATE innings
+		SET total_runs = $2,
+			total_wickets = $3,
+			status = 'live',
+			completed_at = NULL
+		WHERE id = $1
+	`, inningsID, rebuilt.Runs, rebuilt.Wickets); err != nil {
+		return nil, err
+	}
+
+	if err := cleanupFutureInningsTx(tx, meta.MatchID, meta.InningsNo); err != nil {
+		return nil, err
+	}
+	if err := reopenMatchAfterUndoTx(tx, meta.MatchID); err != nil {
 		return nil, err
 	}
 
@@ -684,21 +699,337 @@ func (e *Engine) UndoLastBall(inningsID uuid.UUID) (*dto.InningsStateResponse, e
 		return nil, err
 	}
 
-	var out InningsState
-	if err := database.DB.Get(&out, `SELECT * FROM innings_state WHERE innings_id = $1`, inningsID); err != nil {
+	resp := &dto.InningsStateResponse{
+		InningsID:    state.InningsID,
+		StrikerID:    deletedBall.StrikerID,
+		NonStrikerID: deletedBall.NonStriker,
+		BowlerID:     deletedBall.BowlerID,
+		TotalRuns:    rebuilt.Runs,
+		TotalWickets: rebuilt.Wickets,
+		LegalBalls:   rebuilt.Legal,
+		CurrentOver:  over,
+		CurrentBall:  ball,
+	}
+	if meta.TargetRuns != nil && meta.InningsNo == 2 {
+		reqRuns := *meta.TargetRuns - rebuilt.Runs
+		if reqRuns < 0 {
+			reqRuns = 0
+		}
+		ballsLeft := meta.OversPerInnings*6 - rebuilt.Legal
+		if ballsLeft < 0 {
+			ballsLeft = 0
+		}
+		resp.RequiredRunsToWin = &reqRuns
+		resp.BallsRemaining = &ballsLeft
+	}
+
+	return resp, nil
+}
+
+type rebuiltInningsTotals struct {
+	Runs    int `db:"runs"`
+	Wickets int `db:"wickets"`
+	Legal   int `db:"legal"`
+}
+
+func getRebuiltInningsTotalsTx(tx *sqlx.Tx, inningsID uuid.UUID) (*rebuiltInningsTotals, error) {
+	var rebuilt rebuiltInningsTotals
+	if err := tx.Get(&rebuilt, `
+		SELECT COALESCE(SUM(total_runs),0) AS runs,
+			   COALESCE(SUM(CASE WHEN is_wicket THEN 1 ELSE 0 END),0) AS wickets,
+			   COALESCE(SUM(CASE WHEN COALESCE(ball_type, 'normal') NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END),0) AS legal
+		FROM ball_events
+		WHERE innings_id = $1
+		  AND is_deleted = FALSE
+	`, inningsID); err != nil {
 		return nil, err
 	}
-	return &dto.InningsStateResponse{
-		InningsID:    out.InningsID,
-		StrikerID:    out.StrikerID,
-		NonStrikerID: out.NonStrikerID,
-		BowlerID:     out.BowlerID,
-		TotalRuns:    out.TotalRuns,
-		TotalWickets: out.TotalWickets,
-		LegalBalls:   out.LegalBalls,
-		CurrentOver:  out.CurrentOver,
-		CurrentBall:  out.CurrentBall,
-	}, nil
+	return &rebuilt, nil
+}
+
+func ensureUndoAllowedTx(tx *sqlx.Tx, matchID string, inningsNo int) error {
+	var futureBallCount int
+	if err := tx.Get(&futureBallCount, `
+		SELECT COUNT(1)
+		FROM innings i
+		JOIN ball_events be ON be.innings_id = i.id
+		WHERE i.match_id = $1
+		  AND i.innings_no > $2
+		  AND be.is_deleted = FALSE
+	`, matchID, inningsNo); err != nil {
+		return err
+	}
+	if futureBallCount > 0 {
+		return errors.New("cannot undo this innings after next innings has started")
+	}
+	return nil
+}
+
+func cleanupFutureInningsTx(tx *sqlx.Tx, matchID string, inningsNo int) error {
+	if _, err := tx.Exec(`
+		DELETE FROM innings_state
+		WHERE innings_id IN (
+			SELECT id
+			FROM innings
+			WHERE match_id = $1
+			  AND innings_no > $2
+		)`, matchID, inningsNo); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`
+		DELETE FROM innings
+		WHERE match_id = $1
+		  AND innings_no > $2
+	`, matchID, inningsNo)
+	return err
+}
+
+func reopenMatchAfterUndoTx(tx *sqlx.Tx, matchID string) error {
+	if _, err := tx.Exec(`
+		UPDATE player_match_stats
+		SET fantasy_points = COALESCE(fantasy_points, 0) - COALESCE(result_points, 0),
+			result_points = 0,
+			updated_at = NOW()
+		WHERE match_id = $1
+	`, matchID); err != nil {
+		return err
+	}
+
+	_, err := tx.Exec(`
+		UPDATE matches
+		SET status = 'live',
+			winner_match_team_id = NULL,
+			completed_at = NULL,
+			player_of_match_user_id = NULL,
+			worst_player_user_id = NULL
+		WHERE id = $1
+	`, matchID)
+	return err
+}
+
+func rebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
+	if _, err := tx.Exec(`
+		INSERT INTO player_match_stats (match_id, player_id, team_player_id, updated_at)
+		SELECT $1, tp.player_id, tp.id, NOW()
+		FROM team_players tp
+		WHERE tp.player_id IS NOT NULL
+		  AND tp.id IN (
+			SELECT be.striker_id
+			FROM ball_events be
+			WHERE be.match_id = $1
+			  AND be.is_deleted = FALSE
+			  AND be.striker_id IS NOT NULL
+			UNION
+			SELECT be.bowler_id
+			FROM ball_events be
+			WHERE be.match_id = $1
+			  AND be.is_deleted = FALSE
+			  AND be.bowler_id IS NOT NULL
+			UNION
+			SELECT be.dismissed_player_id
+			FROM ball_events be
+			WHERE be.match_id = $1
+			  AND be.is_deleted = FALSE
+			  AND be.dismissed_player_id IS NOT NULL
+			UNION
+			SELECT tp2.id
+			FROM point_events pe
+			JOIN team_players tp2 ON tp2.player_id = pe.user_id
+			JOIN matches m ON m.id = pe.match_id
+			WHERE pe.match_id = $1
+			  AND (tp2.team_id = m.team_a_id OR tp2.team_id = m.team_b_id)
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM player_match_stats pms
+			WHERE pms.match_id = $1
+			  AND pms.team_player_id = tp.id
+		  )
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE player_match_stats
+		SET runs_scored = 0,
+			balls_faced = 0,
+			fours = 0,
+			sixes = 0,
+			strike_rate = 0,
+			is_out = FALSE,
+			overs_bowled = 0,
+			legal_balls_bowled = 0,
+			maidens = 0,
+			runs_conceded = 0,
+			wickets_taken = 0,
+			economy = 0,
+			catches = 0,
+			stumping = 0,
+			runouts = 0,
+			batting_points = 0,
+			bowling_points = 0,
+			fielding_points = 0,
+			fantasy_points = COALESCE(result_points, 0),
+			updated_at = NOW()
+		WHERE match_id = $1
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		WITH batting AS (
+			SELECT
+				be.striker_id AS team_player_id,
+				COALESCE(SUM(GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.extras, 0), 0)), 0)::INT AS runs_scored,
+				COALESCE(SUM(CASE WHEN COALESCE(be.ball_type, 'normal') NOT IN ('wide', 'no_ball', 'dead_ball', 'retired_hurt') THEN 1 ELSE 0 END), 0)::INT AS balls_faced,
+				COALESCE(SUM(CASE WHEN GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.extras, 0), 0) = 4 THEN 1 ELSE 0 END), 0)::INT AS fours,
+				COALESCE(SUM(CASE WHEN GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.extras, 0), 0) = 6 THEN 1 ELSE 0 END), 0)::INT AS sixes
+			FROM ball_events be
+			WHERE be.match_id = $1
+			  AND be.is_deleted = FALSE
+			  AND be.striker_id IS NOT NULL
+			GROUP BY be.striker_id
+		)
+		UPDATE player_match_stats pms
+		SET runs_scored = batting.runs_scored,
+			balls_faced = batting.balls_faced,
+			fours = batting.fours,
+			sixes = batting.sixes,
+			strike_rate = CASE
+				WHEN batting.balls_faced > 0 THEN ROUND(batting.runs_scored::NUMERIC * 100 / batting.balls_faced, 2)
+				ELSE 0
+			END,
+			updated_at = NOW()
+		FROM batting
+		WHERE pms.match_id = $1
+		  AND pms.team_player_id = batting.team_player_id
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		WITH dismissed AS (
+			SELECT DISTINCT dismissed_player_id AS team_player_id
+			FROM ball_events
+			WHERE match_id = $1
+			  AND is_deleted = FALSE
+			  AND is_wicket = TRUE
+			  AND dismissed_player_id IS NOT NULL
+		)
+		UPDATE player_match_stats pms
+		SET is_out = TRUE,
+			updated_at = NOW()
+		FROM dismissed
+		WHERE pms.match_id = $1
+		  AND pms.team_player_id = dismissed.team_player_id
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		WITH bowling AS (
+			SELECT
+				be.bowler_id AS team_player_id,
+				COALESCE(SUM(GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.byes, 0) - COALESCE(be.leg_byes, 0), 0)), 0)::INT AS runs_conceded,
+				COALESCE(SUM(CASE WHEN COALESCE(be.is_wicket, FALSE) THEN 1 ELSE 0 END), 0)::INT AS wickets_taken,
+				COALESCE(SUM(CASE WHEN COALESCE(be.ball_type, 'normal') NOT IN ('wide', 'no_ball', 'dead_ball', 'retired_hurt') THEN 1 ELSE 0 END), 0)::INT AS legal_balls_bowled
+			FROM ball_events be
+			WHERE be.match_id = $1
+			  AND be.is_deleted = FALSE
+			  AND be.bowler_id IS NOT NULL
+			GROUP BY be.bowler_id
+		), maiden_overs AS (
+			SELECT
+				over_summary.team_player_id,
+				COUNT(*) FILTER (WHERE over_summary.legal_balls = 6 AND over_summary.runs_conceded = 0)::INT AS maidens
+			FROM (
+				SELECT
+					be.bowler_id AS team_player_id,
+					be.innings_id,
+					be.ball_no,
+					SUM(CASE WHEN COALESCE(be.ball_type, 'normal') NOT IN ('wide', 'no_ball', 'dead_ball', 'retired_hurt') THEN 1 ELSE 0 END) AS legal_balls,
+					SUM(GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.byes, 0) - COALESCE(be.leg_byes, 0), 0)) AS runs_conceded
+				FROM ball_events be
+				WHERE be.match_id = $1
+				  AND be.is_deleted = FALSE
+				  AND be.bowler_id IS NOT NULL
+				GROUP BY be.bowler_id, be.innings_id, be.ball_no
+			) over_summary
+			GROUP BY over_summary.team_player_id
+		)
+		UPDATE player_match_stats pms
+		SET runs_conceded = bowling.runs_conceded,
+			wickets_taken = bowling.wickets_taken,
+			legal_balls_bowled = bowling.legal_balls_bowled,
+			overs_bowled = FLOOR(bowling.legal_balls_bowled / 6.0) + MOD(bowling.legal_balls_bowled, 6)::NUMERIC / 10.0,
+			maidens = COALESCE(maiden_overs.maidens, 0),
+			economy = CASE
+				WHEN bowling.legal_balls_bowled > 0 THEN ROUND(bowling.runs_conceded::NUMERIC * 6 / bowling.legal_balls_bowled, 2)
+				ELSE 0
+			END,
+			updated_at = NOW()
+		FROM bowling
+		LEFT JOIN maiden_overs ON maiden_overs.team_player_id = bowling.team_player_id
+		WHERE pms.match_id = $1
+		  AND pms.team_player_id = bowling.team_player_id
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		WITH fielding AS (
+			SELECT
+				fielder_id AS team_player_id,
+				COALESCE(SUM(CASE WHEN dismissal_type = 'caught' THEN 1 ELSE 0 END), 0)::INT AS catches,
+				COALESCE(SUM(CASE WHEN dismissal_type = 'stumped' THEN 1 ELSE 0 END), 0)::INT AS stumping,
+				COALESCE(SUM(CASE WHEN dismissal_type = 'run_out' THEN 1 ELSE 0 END), 0)::INT AS runouts
+			FROM ball_events
+			WHERE match_id = $1
+			  AND is_deleted = FALSE
+			  AND fielder_id IS NOT NULL
+			GROUP BY fielder_id
+		)
+		UPDATE player_match_stats pms
+		SET catches = fielding.catches,
+			stumping = fielding.stumping,
+			runouts = fielding.runouts,
+			updated_at = NOW()
+		FROM fielding
+		WHERE pms.match_id = $1
+		  AND pms.team_player_id = fielding.team_player_id
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		WITH points AS (
+			SELECT
+				tp.id AS team_player_id,
+				COALESCE(SUM(CASE WHEN pe.category = 'batting'::point_category THEN pe.points ELSE 0 END), 0)::INT AS batting_points,
+				COALESCE(SUM(CASE WHEN pe.category = 'bowling'::point_category THEN pe.points ELSE 0 END), 0)::INT AS bowling_points,
+				COALESCE(SUM(CASE WHEN pe.category = 'fielding'::point_category THEN pe.points ELSE 0 END), 0)::INT AS fielding_points,
+				COALESCE(SUM(pe.points), 0)::INT AS fantasy_points
+			FROM point_events pe
+			JOIN team_players tp ON tp.player_id = pe.user_id
+			JOIN matches m ON m.id = pe.match_id
+			WHERE pe.match_id = $1
+			  AND (tp.team_id = m.team_a_id OR tp.team_id = m.team_b_id)
+			GROUP BY tp.id
+		)
+		UPDATE player_match_stats pms
+		SET batting_points = points.batting_points,
+			bowling_points = points.bowling_points,
+			fielding_points = points.fielding_points,
+			fantasy_points = points.fantasy_points + COALESCE(pms.result_points, 0),
+			updated_at = NOW()
+		FROM points
+		WHERE pms.match_id = $1
+		  AND pms.team_player_id = points.team_player_id
+	`, matchID); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func strPtr(v string) *string { return &v }

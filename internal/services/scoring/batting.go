@@ -39,7 +39,7 @@ func batting(req dto.BallRequest, ctx scoreContext) int {
 
 		afterRuns := ctx.batterRunsBefore + req.RunsOffBat
 		afterBalls := ctx.batterBallsBefore
-		if req.BallType != "wide" && req.BallType != "no_ball" {
+		if req.BallType != "wide" && req.BallType != "no_ball" && req.BallType != "dead_ball" && req.BallType != "retired_hurt" {
 			afterBalls++
 		}
 		if afterRuns == 0 {
@@ -62,7 +62,7 @@ func batting(req dto.BallRequest, ctx scoreContext) int {
 	}
 
 	afterBalls := ctx.batterBallsBefore
-	if req.BallType != "wide" && req.BallType != "no_ball" {
+	if req.BallType != "wide" && req.BallType != "no_ball" && req.BallType != "dead_ball" && req.BallType != "retired_hurt" {
 		afterBalls++
 	}
 	beforeSR := ctx.batterStrikeRateBonusBefore

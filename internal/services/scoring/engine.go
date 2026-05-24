@@ -66,7 +66,7 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 		if err := database.DB.QueryRowx(`
 			SELECT
 				COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END), 0) AS runs_before,
-				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball') THEN 1 ELSE 0 END), 0) AS balls_before
+				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS balls_before
 			FROM ball_events
 			WHERE match_id = $1
 			  AND innings_id = $2
@@ -106,7 +106,7 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 
 		if err := database.DB.QueryRowx(`
 			SELECT
-				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball') THEN 1 ELSE 0 END), 0) AS legal_balls_before,
+				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS legal_balls_before,
 				COALESCE(SUM(total_runs - byes - leg_byes), 0) AS runs_conceded_before
 			FROM ball_events
 			WHERE match_id = $1
@@ -120,7 +120,7 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 
 		if err := database.DB.QueryRowx(`
 			SELECT
-				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball') THEN 1 ELSE 0 END), 0) AS over_legal_before,
+				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS over_legal_before,
 				COALESCE(SUM(total_runs - byes - leg_byes), 0) AS over_runs_before,
 				COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 WHEN GREATEST(total_runs - extras, 0) IN (4, 6) THEN 1 ELSE 0 END), 0) AS over_boundaries_before
 			FROM ball_events

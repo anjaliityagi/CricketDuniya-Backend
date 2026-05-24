@@ -81,6 +81,10 @@ func (h *BallHandler) UndoLastBall(c *gin.Context) {
 
 	state, err := h.matchEngine.UndoLastBall(inningsID)
 	if err != nil {
+		if isScoringClientError(err) {
+			badRequest(c, err.Error(), err)
+			return
+		}
 		internalServerError(c, "Unable to undo last ball right now. Please try again", err)
 		return
 	}
@@ -108,6 +112,8 @@ func isScoringClientError(err error) bool {
 		"strikers must belong to batting team",
 		"bowler must belong to bowling team",
 		"striker and non_striker must be different players",
+		"nothing to undo",
+		"cannot undo this innings after next innings has started",
 	}
 	for _, fragment := range clientFragments {
 		if strings.Contains(msg, fragment) {
