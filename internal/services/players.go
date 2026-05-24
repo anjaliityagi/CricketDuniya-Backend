@@ -161,6 +161,17 @@ func AssignCaptain(
 	)
 }
 
+func AssignWicketKeeper(
+	teamID string,
+	playerID string,
+) error {
+
+	return repositories.AssignWicketKeeper(
+		teamID,
+		playerID,
+	)
+}
+
 
 func GetPlayersDirectory(search string, limit int) ([]dto.PlayerDirectoryItem, error) {
 	return repositories.GetPlayersDirectory(search, limit)

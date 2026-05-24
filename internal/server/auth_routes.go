@@ -48,6 +48,7 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 
 			protected.POST("/team-players", handlers.AddPlayersToTeams)
 			protected.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)
+			protected.PUT("players/:player_id/assign-wicketkeeper", handlers.AssignWicketKeeper)
 
 		}
 	}

@@ -118,3 +118,39 @@ func AssignCaptain(
 
 	return err
 }
+
+func AssignWicketKeeper(
+	teamID string,
+	playerID string,
+) error {
+
+	resetQuery := `
+	UPDATE team_players
+	SET is_wicket_keeper = false
+	WHERE team_id = $1
+	`
+
+	_, err := database.DB.Exec(
+		resetQuery,
+		teamID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	assignQuery := `
+	UPDATE team_players
+	SET is_wicket_keeper = true
+	WHERE team_id = $1
+	AND player_id = $2
+	`
+
+	_, err = database.DB.Exec(
+		assignQuery,
+		teamID,
+		playerID,
+	)
+
+	return err
+}

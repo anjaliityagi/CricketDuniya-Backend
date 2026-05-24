@@ -157,3 +157,37 @@ func AssignCaptain(c *gin.Context) {
 		"message": "captain assigned successfully",
 	})
 }
+
+func AssignWicketKeeper(c *gin.Context) {
+
+	playerID := c.Param("player_id")
+
+	var req dto.AssignWicketKeeperRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+
+		return
+	}
+
+	err := services.AssignWicketKeeper(
+		req.TeamID,
+		playerID,
+	)
+
+	if err != nil {
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "wicketkeeper assigned successfully",
+	})
+}

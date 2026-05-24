@@ -49,6 +49,9 @@ type AssignCaptainRequest struct {
 	TeamID string `json:"team_id" binding:"required"`
 }
 
+type AssignWicketKeeperRequest struct {
+	TeamID string `json:"team_id" binding:"required"`
+}
 
 type PlayerDirectoryItem struct {
 	ID            string  `db:"id" json:"id"`
