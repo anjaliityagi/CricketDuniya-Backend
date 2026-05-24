@@ -144,15 +144,18 @@ func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
 
 	query := `
 	SELECT
-		COALESCE(SUM(overs_bowled),0)::FLOAT AS overs_bowled,
+		(
+			FLOOR(COALESCE(SUM(legal_balls_bowled), 0) / 6.0)
+			+ MOD(COALESCE(SUM(legal_balls_bowled), 0), 6)::NUMERIC / 10.0
+		)::FLOAT AS overs_bowled,
 		COALESCE(SUM(wickets_taken),0)::INT AS wickets,
 		COALESCE(SUM(runs_conceded),0)::INT AS runs_conceded,
 		COALESCE(SUM(maidens),0)::INT AS maidens,
 
 		COALESCE(
 			ROUND(
-				SUM(runs_conceded)::NUMERIC /
-				NULLIF(SUM(overs_bowled),0),
+				SUM(runs_conceded)::NUMERIC * 6 /
+				NULLIF(SUM(legal_balls_bowled),0),
 			2),
 		0)::FLOAT AS economy
 

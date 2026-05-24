@@ -65,7 +65,7 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 
 		if err := database.DB.QueryRowx(`
 			SELECT
-				COALESCE(SUM(runs_off_bat), 0) AS runs_before,
+				COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END), 0) AS runs_before,
 				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball') THEN 1 ELSE 0 END), 0) AS balls_before
 			FROM ball_events
 			WHERE match_id = $1
@@ -122,7 +122,7 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 			SELECT
 				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball') THEN 1 ELSE 0 END), 0) AS over_legal_before,
 				COALESCE(SUM(total_runs - byes - leg_byes), 0) AS over_runs_before,
-				COALESCE(SUM(CASE WHEN is_boundary_four OR is_boundary_six THEN 1 ELSE 0 END), 0) AS over_boundaries_before
+				COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 WHEN GREATEST(total_runs - extras, 0) IN (4, 6) THEN 1 ELSE 0 END), 0) AS over_boundaries_before
 			FROM ball_events
 			WHERE match_id = $1
 			  AND innings_id = $2
@@ -139,7 +139,7 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 
 func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (int, error) {
 	rows, err := database.DB.Queryx(`
-		SELECT is_boundary_four, is_boundary_six
+		SELECT CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END AS runs_off_bat
 		FROM ball_events
 		WHERE match_id = $1
 		  AND innings_id = $2
@@ -155,15 +155,15 @@ func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (i
 
 	count := 0
 	for rows.Next() {
-		var isFour, isSix bool
-		if err := rows.Scan(&isFour, &isSix); err != nil {
+		var runsOffBat int
+		if err := rows.Scan(&runsOffBat); err != nil {
 			return 0, err
 		}
-		if boundaryType == "four" && isFour {
+		if boundaryType == "four" && runsOffBat == 4 {
 			count++
 			continue
 		}
-		if boundaryType == "six" && isSix {
+		if boundaryType == "six" && runsOffBat == 6 {
 			count++
 			continue
 		}
@@ -174,7 +174,7 @@ func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (i
 
 func countConsecutiveBowlerConcededBoundary(req dto.BallRequest, boundaryType string) (int, error) {
 	rows, err := database.DB.Queryx(`
-		SELECT is_boundary_four, is_boundary_six
+		SELECT CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END AS runs_off_bat
 		FROM ball_events
 		WHERE match_id = $1
 		  AND innings_id = $2
@@ -190,15 +190,15 @@ func countConsecutiveBowlerConcededBoundary(req dto.BallRequest, boundaryType st
 
 	count := 0
 	for rows.Next() {
-		var isFour, isSix bool
-		if err := rows.Scan(&isFour, &isSix); err != nil {
+		var runsOffBat int
+		if err := rows.Scan(&runsOffBat); err != nil {
 			return 0, err
 		}
-		if boundaryType == "four" && isFour {
+		if boundaryType == "four" && runsOffBat == 4 {
 			count++
 			continue
 		}
-		if boundaryType == "six" && isSix {
+		if boundaryType == "six" && runsOffBat == 6 {
 			count++
 			continue
 		}

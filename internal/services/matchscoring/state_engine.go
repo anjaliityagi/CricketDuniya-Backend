@@ -4,6 +4,7 @@ import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/dto"
 	"CricketDuniya-Backend/internal/services/scoring"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -63,12 +64,14 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		return nil, err
 	}
 
-	if state.LegalBalls > 0 &&
-		state.CurrentBall == 0 &&
-		state.BowlerID != nil &&
-		*state.BowlerID == activeBowler {
-
-		return nil, errors.New("same bowler cannot bowl consecutive overs")
+	if state.LegalBalls > 0 && state.CurrentBall == 0 {
+		previousOverBowlerID, err := getPreviousOverBowlerID(tx, req.InningsID)
+		if err != nil {
+			return nil, err
+		}
+		if previousOverBowlerID != "" && previousOverBowlerID == activeBowler {
+			return nil, errors.New("same bowler cannot bowl consecutive overs")
+		}
 	}
 	internalReq, legalBall := mapBallRequest(req, activeStriker, activeNonStriker, activeBowler, state)
 
@@ -178,6 +181,12 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		return nil, err
 	}
 
+	if inningsCompleted {
+		if err := ensureNextInningsTx(tx, inningsMeta, matchUpdate.InningsRuns); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -235,6 +244,56 @@ func getInningsMeta(tx *sqlx.Tx, inningsID uuid.UUID) (*inningsMeta, error) {
 		return nil, err
 	}
 	return &m, nil
+}
+
+func ensureNextInningsTx(tx *sqlx.Tx, meta *inningsMeta, firstInningsRuns int) error {
+	if meta.InningsNo != 1 {
+		return nil
+	}
+
+	var inningsCount int
+	if err := tx.Get(&inningsCount, `SELECT COUNT(1) FROM innings WHERE match_id = $1 AND innings_no = 2`, meta.MatchID); err != nil {
+		return err
+	}
+	if inningsCount > 0 {
+		return nil
+	}
+
+	targetRuns := firstInningsRuns + 1
+	_, err := tx.Exec(`
+		INSERT INTO innings (
+			match_id,
+			batting_team_id,
+			bowling_team_id,
+			innings_no,
+			target_runs,
+			status,
+			started_at
+		) VALUES ($1, $2, $3, 2, $4, 'live', NOW())
+	`, meta.MatchID, meta.BowlingTeamID, meta.BattingTeamID, targetRuns)
+	return err
+}
+
+func getPreviousOverBowlerID(tx *sqlx.Tx, inningsID uuid.UUID) (string, error) {
+	var bowlerID sql.NullString
+	err := tx.Get(&bowlerID, `
+		SELECT bowler_id
+		FROM ball_events
+		WHERE innings_id = $1
+		  AND is_deleted = FALSE
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, inningsID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	if !bowlerID.Valid {
+		return "", nil
+	}
+	return bowlerID.String, nil
 }
 
 func getOrCreateState(tx *sqlx.Tx, req dto.BallInputRequest, meta *inningsMeta) (*InningsState, error) {
@@ -363,19 +422,19 @@ func saveBallTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 	query := `
 	INSERT INTO ball_events (
 		id, innings_id, match_id, striker_id, non_striker_id, bowler_id,
-		ball_no, delivery_no, ball_type, runs_scored, runs_off_bat, extras, total_runs,
-		is_dot_ball, is_boundary_four, is_boundary_six, is_wicket, dismissal_type,
+		ball_no, delivery_no, ball_type, runs_scored, extras, total_runs,
+		is_dot_ball, is_wicket, dismissal_type,
 		dismissed_player_id, fielder_id, wides, no_balls, byes, leg_byes, created_at
 	) VALUES (
-		gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-		$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23, NOW()
+		gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+		$12,$13,$14,$15,$16,$17,$18,$19,$20, NOW()
 	) RETURNING id
 	`
 	var id string
 	if err := tx.QueryRowx(query,
 		req.InningsID, req.MatchID, req.StrikerID, req.NonStrikerID, req.BowlerID,
-		req.BallNo, req.DeliveryNo, req.BallType, req.RunsScored, req.RunsOffBat, req.Extras, req.TotalRuns,
-		req.IsDotBall, req.IsBoundaryFour, req.IsBoundarySix, req.IsWicket, req.DismissalType,
+		req.BallNo, req.DeliveryNo, req.BallType, req.RunsScored, req.Extras, req.TotalRuns,
+		req.IsDotBall, req.IsWicket, req.DismissalType,
 		req.DismissedPlayerID, req.FielderID, req.Wides, req.NoBalls, req.Byes, req.LegByes,
 	).Scan(&id); err != nil {
 		return "", err
@@ -430,7 +489,7 @@ func upsertFantasyPointsTx(tx *sqlx.Tx, matchID, matchPlayerID string, points in
 	if rows > 0 {
 		return nil
 	}
-	_, err = tx.Exec(`INSERT INTO player_match_stats (match_id, team_player_id,`+bucket+`, fantasy_points, updated_at) VALUES ($1,$2,$3,$3,NOW())`, matchID, matchPlayerID, points)
+	_, err = tx.Exec(`INSERT INTO player_match_stats (match_id, player_id, team_player_id,`+bucket+`, fantasy_points, updated_at) SELECT $1, tp.player_id, tp.id, $3, $3, NOW() FROM team_players tp WHERE tp.id = $2 AND tp.player_id IS NOT NULL`, matchID, matchPlayerID, points)
 	return err
 }
 
@@ -445,27 +504,87 @@ func insertPointEventTx(tx *sqlx.Tx, matchID, matchPlayerID, ballEventID, catego
 }
 
 func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRequest) (*dto.InningsStateResponse, error) {
-	setID := func(v *uuid.UUID) interface{} {
-		if v == nil {
-			return nil
-		}
-		return *v
-	}
-	_, err := database.DB.Exec(`
-		UPDATE innings_state
-		SET striker_id = COALESCE($2, striker_id),
-			non_striker_id = COALESCE($3, non_striker_id),
-			bowler_id = COALESCE($4, bowler_id),
-			updated_at = NOW()
-		WHERE innings_id = $1
-	`, inningsID, setID(req.StrikerID), setID(req.NonStrikerID), setID(req.BowlerID))
+	tx, err := database.DB.Beginx()
 	if err != nil {
 		return nil, err
 	}
-	var s InningsState
-	if err := database.DB.Get(&s, `SELECT * FROM innings_state WHERE innings_id = $1`, inningsID); err != nil {
+	defer tx.Rollback()
+
+	meta, err := getInningsMeta(tx, inningsID)
+	if err != nil {
 		return nil, err
 	}
+
+	var state InningsState
+	err = tx.Get(&state, `SELECT * FROM innings_state WHERE innings_id = $1 FOR UPDATE`, inningsID)
+	stateExists := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	finalStrikerID := ""
+	finalNonStrikerID := ""
+	finalBowlerID := ""
+	if stateExists {
+		if state.StrikerID != nil {
+			finalStrikerID = *state.StrikerID
+		}
+		if state.NonStrikerID != nil {
+			finalNonStrikerID = *state.NonStrikerID
+		}
+		if state.BowlerID != nil {
+			finalBowlerID = *state.BowlerID
+		}
+	}
+	if req.StrikerID != nil {
+		finalStrikerID = req.StrikerID.String()
+	}
+	if req.NonStrikerID != nil {
+		finalNonStrikerID = req.NonStrikerID.String()
+	}
+	if req.BowlerID != nil {
+		finalBowlerID = req.BowlerID.String()
+	}
+
+	if finalStrikerID == "" || finalNonStrikerID == "" || finalBowlerID == "" {
+		return nil, errors.New("striker_id, non_striker_id and bowler_id are required to set innings state")
+	}
+	if finalStrikerID == finalNonStrikerID {
+		return nil, errors.New("striker and non_striker must be different players")
+	}
+	if err := validateActorTeams(tx, meta.BattingTeamID, meta.BowlingTeamID, finalStrikerID, finalNonStrikerID, finalBowlerID); err != nil {
+		return nil, err
+	}
+
+	if stateExists {
+		_, err = tx.Exec(`
+			UPDATE innings_state
+			SET striker_id = $2,
+				non_striker_id = $3,
+				bowler_id = $4,
+				updated_at = NOW()
+			WHERE innings_id = $1
+		`, inningsID, finalStrikerID, finalNonStrikerID, finalBowlerID)
+	} else {
+		_, err = tx.Exec(`
+			INSERT INTO innings_state (
+				innings_id, striker_id, non_striker_id, bowler_id,
+				total_runs, total_wickets, legal_balls, current_over, current_ball, status
+			) VALUES ($1, $2, $3, $4, 0, 0, 0, 0, 0, 'live')
+		`, inningsID, finalStrikerID, finalNonStrikerID, finalBowlerID)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var s InningsState
+	if err := tx.Get(&s, `SELECT * FROM innings_state WHERE innings_id = $1`, inningsID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	return &dto.InningsStateResponse{
 		InningsID:    s.InningsID,
 		StrikerID:    s.StrikerID,

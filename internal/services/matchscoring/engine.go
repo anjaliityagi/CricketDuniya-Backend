@@ -119,8 +119,9 @@ func upsertBattingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, le
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO player_match_stats (                    
-		    match_id,
+		INSERT INTO player_match_stats (
+			match_id,
+			player_id,
 			team_player_id,
 			runs_scored,
 			balls_faced,
@@ -129,7 +130,19 @@ func upsertBattingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, le
 			is_out,
 			updated_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+		SELECT
+			$1,
+			tp.player_id,
+			tp.id,
+			$3,
+			$4,
+			$5,
+			$6,
+			$7,
+			NOW()
+		FROM team_players tp
+		WHERE tp.id = $2
+		  AND tp.player_id IS NOT NULL
 	`, matchID, matchPlayerID, runs, balls, fours, sixes, outInc)
 	return err
 }
@@ -139,9 +152,9 @@ func upsertBowlingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runsConceded
 	if isWicket {
 		wickets = 1
 	}
-	overDelta := 0.0
+	legalBallDelta := 0
 	if legalBall {
-		overDelta = 1.0 / 6.0
+		legalBallDelta = 1
 	}
 
 	res, err := tx.Exec(`
@@ -149,11 +162,13 @@ func upsertBowlingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runsConceded
 		SET
 			runs_conceded = COALESCE(runs_conceded, 0) + $3,
 			wickets_taken = COALESCE(wickets_taken, 0) + $4,
-			overs_bowled = COALESCE(overs_bowled, 0) + $5,
+			legal_balls_bowled = COALESCE(legal_balls_bowled, 0) + $5::INTEGER,
+			overs_bowled = FLOOR((COALESCE(legal_balls_bowled, 0) + $5::INTEGER) / 6.0)
+				+ MOD(COALESCE(legal_balls_bowled, 0) + $5::INTEGER, 6)::NUMERIC / 10.0,
 			updated_at = NOW()
 		WHERE match_id = $1
 		  AND team_player_id = $2
-	`, matchID, matchPlayerID, runsConceded, wickets, overDelta)
+	`, matchID, matchPlayerID, runsConceded, wickets, legalBallDelta)
 	if err != nil {
 		return err
 	}
@@ -169,13 +184,26 @@ func upsertBowlingStats(tx *sqlx.Tx, matchID, matchPlayerID string, runsConceded
 	_, err = tx.Exec(`
 		INSERT INTO player_match_stats (
 			match_id,
+			player_id,
 			team_player_id,
 			runs_conceded,
 			wickets_taken,
+			legal_balls_bowled,
 			overs_bowled,
 			updated_at
 		)
-		VALUES ($1,$2,$3,$4,$5,NOW())
-	`, matchID, matchPlayerID, runsConceded, wickets, overDelta)
+		SELECT
+			$1,
+			tp.player_id,
+			tp.id,
+			$3,
+			$4,
+			$5::INTEGER,
+			FLOOR($5::INTEGER / 6.0) + MOD($5::INTEGER, 6)::NUMERIC / 10.0,
+			NOW()
+		FROM team_players tp
+		WHERE tp.id = $2
+		  AND tp.player_id IS NOT NULL
+	`, matchID, matchPlayerID, runsConceded, wickets, legalBallDelta)
 	return err
 }

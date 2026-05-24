@@ -67,8 +67,11 @@ func upsertFantasyPoints(tx *sqlx.Tx, matchID, matchPlayerID string, points int,
 	}
 
 	insertQuery := `
-		INSERT INTO player_match_stats (match_id,team_player_id, ` + bucket + `, fantasy_points, updated_at)
-		VALUES ($1, $2, $3, $3, NOW())
+		INSERT INTO player_match_stats (match_id, player_id, team_player_id, ` + bucket + `, fantasy_points, updated_at)
+		SELECT $1, tp.player_id, tp.id, $3, $3, NOW()
+		FROM team_players tp
+		WHERE tp.id = $2
+		  AND tp.player_id IS NOT NULL
 	`
 	_, err = tx.Exec(insertQuery, matchID, matchPlayerID, points)
 	return err

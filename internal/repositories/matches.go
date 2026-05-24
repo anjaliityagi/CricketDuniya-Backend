@@ -262,7 +262,10 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		COALESCE(pms.is_out, FALSE) AS is_out,
 		COALESCE(pms.runs_conceded, 0) AS runs_conceded,
 		COALESCE(pms.wickets_taken, 0) AS wickets_taken,
-		COALESCE(pms.overs_bowled, 0) AS overs_bowled,
+		(
+			FLOOR(COALESCE(pms.legal_balls_bowled, 0) / 6.0)
+			+ MOD(COALESCE(pms.legal_balls_bowled, 0), 6)::NUMERIC / 10.0
+		)::FLOAT AS overs_bowled,
 		COALESCE(pms.fantasy_points, 0) AS fantasy_points
 	FROM player_match_stats pms
 	JOIN team_players tp ON tp.id = pms.team_player_id
@@ -287,13 +290,16 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		COALESCE(pms.is_out, FALSE) AS is_out,
 		COALESCE(pms.runs_conceded, 0) AS runs_conceded,
 		COALESCE(pms.wickets_taken, 0) AS wickets_taken,
-		COALESCE(pms.overs_bowled, 0) AS overs_bowled,
+		(
+			FLOOR(COALESCE(pms.legal_balls_bowled, 0) / 6.0)
+			+ MOD(COALESCE(pms.legal_balls_bowled, 0), 6)::NUMERIC / 10.0
+		)::FLOAT AS overs_bowled,
 		COALESCE(pms.fantasy_points, 0) AS fantasy_points
 	FROM player_match_stats pms
 	JOIN team_players tp ON tp.id = pms.team_player_id
 	LEFT JOIN users u ON u.id = tp.player_id
 	WHERE pms.match_id = $1
-	ORDER BY pms.wickets_taken DESC, pms.overs_bowled DESC
+	ORDER BY pms.wickets_taken DESC, COALESCE(pms.legal_balls_bowled, 0) DESC
 	`
 	if err := database.DB.Select(&scorecard.Bowling, bowlingQuery, matchID); err != nil {
 		return nil, err
@@ -328,11 +334,11 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		BowlerID     *string `db:"bowler_id"`
 	}
 	err = database.DB.Get(&current, `
-		SELECT striker_id, non_striker_id, bowler_id
-		FROM ball_events
-		WHERE match_id = $1
-		  AND is_deleted = FALSE
-		ORDER BY created_at DESC
+		SELECT s.striker_id, s.non_striker_id, s.bowler_id
+		FROM innings i
+		LEFT JOIN innings_state s ON s.innings_id = i.id
+		WHERE i.match_id = $1
+		ORDER BY i.innings_no DESC
 		LIMIT 1
 	`, matchID)
 	if err == nil {
