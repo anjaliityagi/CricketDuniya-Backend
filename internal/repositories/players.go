@@ -3,6 +3,7 @@ package repositories
 import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/models"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -69,7 +70,8 @@ func AddPlayerToTeam(
 		team_id,
 		player_id
 	)
-	VALUES ($1, $2)
+	VALUES ($1, $2) ON CONFLICT ON CONSTRAINT unique_team_user_match
+DO NOTHING
 	`
 
 	_, err := database.DB.Exec(
@@ -77,7 +79,7 @@ func AddPlayerToTeam(
 		teamPlayer.TeamID,
 		teamPlayer.PlayerID,
 	)
-
+	fmt.Println(err)
 	return err
 }
 

@@ -61,11 +61,11 @@ func GetMatchTeams(matchID string) ([]MatchTeam, error) {
 	return rows, nil
 }
 
-func UpdateToss(matchID string, tossWinnerMatchTeamID string, decision string) error {
+func UpdateToss(matchID string, tossWinnerTeamID string, decision string) error {
 
 	query := `UPDATE matches
 	SET
-		toss_winner_match_team_id = $1,
+
 		toss_winner_team_id = $1,
 		toss_decision = $2,
 		status = 'live'
@@ -73,7 +73,7 @@ func UpdateToss(matchID string, tossWinnerMatchTeamID string, decision string) e
 
 	_, err := database.DB.Exec(
 		query,
-		tossWinnerMatchTeamID,
+		tossWinnerTeamID,
 		decision,
 		matchID,
 	)

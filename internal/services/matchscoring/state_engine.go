@@ -63,10 +63,13 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		return nil, err
 	}
 
-	if state.CurrentBall == 0 && state.BowlerID != nil && *state.BowlerID == activeBowler {
+	if state.LegalBalls > 0 &&
+		state.CurrentBall == 0 &&
+		state.BowlerID != nil &&
+		*state.BowlerID == activeBowler {
+
 		return nil, errors.New("same bowler cannot bowl consecutive overs")
 	}
-
 	internalReq, legalBall := mapBallRequest(req, activeStriker, activeNonStriker, activeBowler, state)
 
 	matchUpdate, err := e.Process(internalReq)

@@ -22,22 +22,22 @@ func PerformToss(req dto.TossRequest) ([]dto.InningsResponse, error) {
 		return nil, errors.New("invalid toss decision")
 	}
 
-	tossWinnerInputID := req.TossWinnerMatchTeamID
-	if tossWinnerInputID == "" {
-		tossWinnerInputID = req.TossWinnerTeamID
-	}
+	tossWinnerInputID := req.TossWinnerTeamID
+	//if tossWinnerInputID == "" {
+	//	tossWinnerInputID = req.TossWinnerTeamID
+	//}
 	if tossWinnerInputID == "" {
 		return nil, errors.New("toss winner team id is required")
 	}
 
-	resolvedWinnerMatchTeamID, err := repositories.ResolveMatchTeamID(req.MatchID, tossWinnerInputID)
+	resolvedWinnerTeamID, err := repositories.ResolveMatchTeamID(req.MatchID, tossWinnerInputID)
 	if err != nil {
 		return nil, errors.New("toss winner team is not part of this match")
 	}
 
 	var winnerIdx = -1
 	for i := range matchTeams {
-		if matchTeams[i].ID == resolvedWinnerMatchTeamID {
+		if matchTeams[i].ID == resolvedWinnerTeamID {
 			winnerIdx = i
 			break
 		}
@@ -55,7 +55,7 @@ func PerformToss(req dto.TossRequest) ([]dto.InningsResponse, error) {
 
 	err = repositories.UpdateToss(
 		req.MatchID,
-		resolvedWinnerMatchTeamID,
+		resolvedWinnerTeamID,
 		req.Decision,
 	)
 

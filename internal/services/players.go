@@ -44,23 +44,23 @@ var ErrPlayerNotFound = errors.New("player not found")
 //
 //		return player, nil
 //	}
-//
-//	func DeletePlayer(playerID string, userID string) error {
-//		deleted, err := repositories.DeletePlayer(playerID, userID)
-//		if err != nil {
-//			return err
-//		}
-//
-//		if !deleted {
-//			return ErrPlayerNotFound
-//		}
-//
-//		return nil
-//	}
-//
-//	func GetPlayersByTeam(teamID string) ([]dto.TeamPlayerResponse, error) {
-//		return repositories.GetPlayersByTeamID(teamID)
-//	}
+
+func DeletePlayer(playerID string, userID string) error {
+	deleted, err := repositories.DeletePlayer(playerID, userID)
+	if err != nil {
+		return err
+	}
+
+	if !deleted {
+		return ErrPlayerNotFound
+	}
+
+	return nil
+}
+
+func GetPlayersByTeam(teamID string) ([]dto.TeamPlayerResponse, error) {
+	return repositories.GetPlayersByTeamID(teamID)
+}
 func AddPlayerToTeam(
 	teamID string,
 	req dto.AddTeamPlayerRequest,
