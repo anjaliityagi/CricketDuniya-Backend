@@ -24,8 +24,27 @@ func GetUserProfile(c *gin.Context) {
 	})
 }
 
-func UpdateUserProfile(c *gin.Context) {
+func GetPublicUserProfile(c *gin.Context) {
+	userID := c.Param("id")
+	if userID == "" {
+		badRequest(c, "Please provide a valid player id", nil)
+		return
+	}
 
+	profile, err := services.GetPublicUserProfile(userID)
+	if err != nil {
+		internalServerError(c, "Unable to fetch player profile right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "player profile fetched successfully",
+		"data":    profile,
+	})
+}
+
+func UpdateUserProfile(c *gin.Context) {
 	var req dto.UpdateProfileRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {

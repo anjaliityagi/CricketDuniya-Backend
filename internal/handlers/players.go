@@ -5,6 +5,7 @@ import (
 	"CricketDuniya-Backend/internal/services"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,6 +39,33 @@ import (
 //			"data":    player,
 //		})
 //	}
+
+func GetPlayersDirectory(c *gin.Context) {
+	search := c.Query("search")
+	limit := 10
+
+	if c.Query("limit") != "" {
+		parsedLimit, err := strconv.Atoi(c.Query("limit"))
+		if err != nil {
+			badRequest(c, "Please provide a valid players limit", err)
+			return
+		}
+		limit = parsedLimit
+	}
+
+	players, err := services.GetPlayersDirectory(search, limit)
+	if err != nil {
+		internalServerError(c, "Unable to fetch players right now. Please try again", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "players fetched successfully",
+		"data": players,
+	})
+}
+
 func DeletePlayer(c *gin.Context) {
 	playerID := c.Param("id")
 	if playerID == "" {

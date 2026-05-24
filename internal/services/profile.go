@@ -5,7 +5,7 @@ import (
 	"CricketDuniya-Backend/internal/repositories"
 )
 
-func GetUserProfile(userID string) (*dto.UserProfileResponse, error) {
+func buildUserProfile(userID string) (*dto.UserProfileResponse, error) {
 	user, err := repositories.GetUserProfileUser(userID)
 	if err != nil {
 		return nil, err
@@ -31,13 +31,27 @@ func GetUserProfile(userID string) (*dto.UserProfileResponse, error) {
 		return nil, err
 	}
 
+	recentMatches, err := repositories.GetUserRecentMatches(userID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &dto.UserProfileResponse{
-		User:     *user,
-		Summary:  *summary,
-		Batting:  *batting,
-		Bowling:  *bowling,
-		Fielding: *fielding,
+		User:          *user,
+		Summary:       *summary,
+		Batting:       *batting,
+		Bowling:       *bowling,
+		Fielding:      *fielding,
+		RecentMatches: recentMatches,
 	}, nil
+}
+
+func GetUserProfile(userID string) (*dto.UserProfileResponse, error) {
+	return buildUserProfile(userID)
+}
+
+func GetPublicUserProfile(userID string) (*dto.UserProfileResponse, error) {
+	return buildUserProfile(userID)
 }
 
 func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserProfileResponse, error) {

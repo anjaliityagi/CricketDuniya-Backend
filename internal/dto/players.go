@@ -48,3 +48,14 @@ type AddTeamPlayerRequest struct {
 type AssignCaptainRequest struct {
 	TeamID string `json:"team_id" binding:"required"`
 }
+
+
+type PlayerDirectoryItem struct {
+	ID            string  `db:"id" json:"id"`
+	Name          string  `db:"name" json:"name"`
+	PhoneNumber   *string `db:"phone_number" json:"phone_number,omitempty"`
+	BattingStyle  *string `db:"batting_style" json:"batting_style,omitempty"`
+	BowlingStyle  *string `db:"bowling_style" json:"bowling_style,omitempty"`
+	MatchesPlayed int     `db:"matches_played" json:"matches_played"`
+	Points        int     `db:"points" json:"points"`
+}

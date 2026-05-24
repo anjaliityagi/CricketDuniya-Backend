@@ -160,3 +160,8 @@ func AssignCaptain(
 		playerID,
 	)
 }
+
+
+func GetPlayersDirectory(search string, limit int) ([]dto.PlayerDirectoryItem, error) {
+	return repositories.GetPlayersDirectory(search, limit)
+}
