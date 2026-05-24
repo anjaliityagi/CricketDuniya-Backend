@@ -26,6 +26,9 @@ type MatchResponse struct {
 	TeamBID   *string `db:"team_b_id" json:"team_b_id"`
 	TeamBName *string `db:"team_b_name" json:"team_b_name"`
 
+	TeamOneScore *string `db:"team_one_score" json:"team_one_score"`
+	TeamTwoScore *string `db:"team_two_score" json:"team_two_score"`
+
 	TeamAMatchTeamID *string `db:"team_a_match_team_id" json:"team_a_match_team_id"`
 	TeamBMatchTeamID *string `db:"team_b_match_team_id" json:"team_b_match_team_id"`
 
@@ -63,6 +66,9 @@ type InningsResponse struct {
 	BowlingMatchTeamID *string `db:"bowling_team_id" json:"bowling_match_team_id"`
 	TotalRuns          int     `db:"total_runs" json:"total_runs"`
 	TotalWickets       int     `db:"total_wickets" json:"total_wickets"`
+	LegalBalls         int     `db:"legal_balls" json:"legal_balls"`
+	CurrentOver        int     `db:"current_over" json:"current_over"`
+	CurrentBall        int     `db:"current_ball" json:"current_ball"`
 }
 
 type ScorecardPlayerStats struct {

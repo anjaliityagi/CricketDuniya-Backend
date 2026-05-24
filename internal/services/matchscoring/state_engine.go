@@ -3,6 +3,7 @@ package matchscoring
 import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/dto"
+	"CricketDuniya-Backend/internal/repositories"
 	"CricketDuniya-Backend/internal/services/scoring"
 	"database/sql"
 	"errors"
@@ -191,6 +192,12 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	if inningsCompleted && inningsMeta.InningsNo == 2 {
+		if err := autoCompleteMatchIfNeeded(req.MatchID.String(), inningsMeta, matchUpdate.InningsRuns); err != nil {
+			return nil, err
+		}
 	}
 
 	resp := dto.InningsStateResponse{
@@ -1030,6 +1037,59 @@ func rebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 	}
 
 	return nil
+}
+
+func autoCompleteMatchIfNeeded(matchID string, meta *inningsMeta, secondInningsRuns int) error {
+	var status string
+	if err := database.DB.Get(&status, `SELECT status FROM matches WHERE id = $1`, matchID); err != nil {
+		return err
+	}
+	if status == "completed" {
+		return nil
+	}
+
+	winnerMatchTeamID, err := determineWinnerMatchTeamID(matchID, meta, secondInningsRuns)
+	if err != nil {
+		return err
+	}
+	if winnerMatchTeamID == "" {
+		return nil
+	}
+
+	inningsIDs, err := repositories.GetMatchInningsIDs(matchID)
+	if err != nil {
+		return err
+	}
+	for _, matchInningsID := range inningsIDs {
+		if err := scoring.ApplyNotOutBonus(matchID, matchInningsID); err != nil {
+			return err
+		}
+	}
+	if err := scoring.ApplyResultPoints(matchID, winnerMatchTeamID); err != nil {
+		return err
+	}
+	return repositories.FinalizeMatch(matchID, winnerMatchTeamID)
+}
+
+func determineWinnerMatchTeamID(matchID string, meta *inningsMeta, secondInningsRuns int) (string, error) {
+	if meta.TargetRuns != nil {
+		if secondInningsRuns >= *meta.TargetRuns {
+			return meta.BattingTeamID, nil
+		}
+		return meta.BowlingTeamID, nil
+	}
+
+	var firstInningsRuns int
+	if err := database.DB.Get(&firstInningsRuns, `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = 1 LIMIT 1`, matchID); err != nil {
+		return "", err
+	}
+	if secondInningsRuns > firstInningsRuns {
+		return meta.BattingTeamID, nil
+	}
+	if secondInningsRuns < firstInningsRuns {
+		return meta.BowlingTeamID, nil
+	}
+	return "", nil
 }
 
 func strPtr(v string) *string { return &v }

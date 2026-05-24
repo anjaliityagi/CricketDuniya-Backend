@@ -92,6 +92,8 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 			 ta_legacy.name AS team_a_name,
 			m.team_b_id,
 			tb_legacy.name AS team_b_name,
+			COALESCE(score_summary.team_one_score, '—') AS team_one_score,
+			COALESCE(score_summary.team_two_score, '—') AS team_two_score,
 			m.team_a_id AS team_a_match_team_id,
 			m.team_b_id AS team_b_match_team_id,
 			m.location,
@@ -104,6 +106,13 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 		FROM matches m
 		LEFT JOIN teams ta_legacy ON ta_legacy.id = m.team_a_id
 		LEFT JOIN teams tb_legacy ON tb_legacy.id = m.team_b_id
+		LEFT JOIN LATERAL (
+			SELECT
+				MAX(CASE WHEN i.batting_team_id = m.team_a_id THEN CONCAT(COALESCE(i.total_runs, 0), '/', COALESCE(i.total_wickets, 0)) END) AS team_one_score,
+				MAX(CASE WHEN i.batting_team_id = m.team_b_id THEN CONCAT(COALESCE(i.total_runs, 0), '/', COALESCE(i.total_wickets, 0)) END) AS team_two_score
+			FROM innings i
+			WHERE i.match_id = m.id
+		) score_summary ON TRUE
 		WHERE 1=1
 	`
 
@@ -183,6 +192,8 @@ func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
 		ta.name AS team_a_name,
 		m.team_b_id,
 		tb.name AS team_b_name,
+		COALESCE(score_summary.team_one_score, '—') AS team_one_score,
+		COALESCE(score_summary.team_two_score, '—') AS team_two_score,
 		m.team_a_id AS team_a_match_team_id,
 		m.team_b_id AS team_b_match_team_id,
 		m.location,
@@ -196,6 +207,13 @@ func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
 	FROM matches m
 	LEFT JOIN teams ta ON ta.id = m.team_a_id
 	LEFT JOIN teams tb ON tb.id = m.team_b_id
+	LEFT JOIN LATERAL (
+		SELECT
+			MAX(CASE WHEN i.batting_team_id = m.team_a_id THEN CONCAT(COALESCE(i.total_runs, 0), '/', COALESCE(i.total_wickets, 0)) END) AS team_one_score,
+			MAX(CASE WHEN i.batting_team_id = m.team_b_id THEN CONCAT(COALESCE(i.total_runs, 0), '/', COALESCE(i.total_wickets, 0)) END) AS team_two_score
+		FROM innings i
+		WHERE i.match_id = m.id
+	) score_summary ON TRUE
 	WHERE m.id = $1
 	`
 
@@ -222,16 +240,26 @@ func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
 
 	query := `
 	SELECT
-		id,
-		match_id,
-		innings_no,
-		batting_team_id,
-		bowling_team_id,
-		COALESCE(total_runs, 0) AS total_runs,
-		COALESCE(total_wickets, 0) AS total_wickets
-	FROM innings
-	WHERE match_id = $1
-	ORDER BY innings_no ASC`
+		i.id,
+		i.match_id,
+		i.innings_no,
+		i.batting_team_id,
+		i.bowling_team_id,
+		COALESCE(i.total_runs, 0) AS total_runs,
+		COALESCE(i.total_wickets, 0) AS total_wickets,
+		COALESCE(s.legal_balls, legal_totals.legal_balls, 0) AS legal_balls,
+		COALESCE(s.current_over, FLOOR(COALESCE(s.legal_balls, legal_totals.legal_balls, 0) / 6.0)::INT) AS current_over,
+		COALESCE(s.current_ball, MOD(COALESCE(s.legal_balls, legal_totals.legal_balls, 0), 6)) AS current_ball
+	FROM innings i
+	LEFT JOIN innings_state s ON s.innings_id = i.id
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(SUM(CASE WHEN COALESCE(be.ball_type, 'normal') NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0)::INT AS legal_balls
+		FROM ball_events be
+		WHERE be.innings_id = i.id
+		  AND be.is_deleted = FALSE
+	) legal_totals ON TRUE
+	WHERE i.match_id = $1
+	ORDER BY i.innings_no ASC`
 
 	if err := database.DB.Select(&innings, query, matchID); err != nil {
 		return nil, err
