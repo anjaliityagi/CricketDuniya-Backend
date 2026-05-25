@@ -17,6 +17,9 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 		auth.POST("/login", handlers.Login)
 		//auth.POST("/forgetPassword", handlers.ForgetPassword)
 
+		auth.POST("/forgot-password", handlers.ForgotPassword)
+		auth.POST("/verify-otp", handlers.VerifyOTPAndResetPassword)
+
 		protected := rg.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{

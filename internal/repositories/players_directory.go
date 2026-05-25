@@ -15,10 +15,9 @@ func GetPlayersDirectory(search string, limit int) ([]dto.PlayerDirectoryItem, e
 		limit = 50
 	}
 
-	query := `
-	SELECT
+	query := `SELECT
 		u.id,
-		COALESCE(u.name, '') AS name,
+		COALESCE(u.name,'') AS name,
 		u.phone_number,
 		u.batting_style,
 		u.bowling_style,
@@ -26,8 +25,7 @@ func GetPlayersDirectory(search string, limit int) ([]dto.PlayerDirectoryItem, e
 		COALESCE(SUM(pms.fantasy_points), 0)::INT AS points
 	FROM users u
 	LEFT JOIN team_players tp ON tp.player_id = u.id
-	LEFT JOIN player_match_stats pms ON pms.team_player_id = tp.id
-	`
+	LEFT JOIN player_match_stats pms ON pms.team_player_id = tp.id`
 
 	args := []interface{}{}
 	trimmedSearch := strings.TrimSpace(search)

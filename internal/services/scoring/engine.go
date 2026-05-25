@@ -1,8 +1,8 @@
 package scoring
 
 import (
-	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/dto"
+	"CricketDuniya-Backend/internal/repositories"
 	"strings"
 )
 
@@ -63,18 +63,11 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 		}
 		ctx.prevConsecutiveBatterSixes = n
 
-		if err := database.DB.QueryRowx(`
-			SELECT
-				COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END), 0) AS runs_before,
-				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS balls_before
-			FROM ball_events
-			WHERE match_id = $1
-			  AND innings_id = $2
-			  AND striker_id = $3
-			  AND is_deleted = FALSE
-		`, req.MatchID, req.InningsID, req.StrikerID).Scan(&ctx.batterRunsBefore, &ctx.batterBallsBefore); err != nil {
+		t, err := repositories.GetBatterTotals(req.MatchID.String(), req.InningsID.String(), req.StrikerID.String())
+		if err != nil {
 			return ctx, err
 		}
+		ctx.batterRunsBefore, ctx.batterBallsBefore = t.RunsBefore, t.BallsBefore
 		ctx.batterStrikeRateBonusBefore = strikeRateBonus(ctx.batterRunsBefore, ctx.batterBallsBefore)
 	}
 
@@ -104,61 +97,31 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 		}
 		ctx.prevConsecutiveBowlerWicketsInOver = n
 
-		if err := database.DB.QueryRowx(`
-			SELECT
-				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS legal_balls_before,
-				COALESCE(SUM(total_runs - byes - leg_byes), 0) AS runs_conceded_before
-			FROM ball_events
-			WHERE match_id = $1
-			  AND innings_id = $2
-			  AND bowler_id = $3
-			  AND is_deleted = FALSE
-		`, req.MatchID, req.InningsID, req.BowlerID).Scan(&ctx.bowlerLegalBallsBefore, &ctx.bowlerRunsConcededBefore); err != nil {
+		t, err := repositories.GetBowlerTotals(req.MatchID.String(), req.InningsID.String(), req.BowlerID.String())
+		if err != nil {
 			return ctx, err
 		}
+		ctx.bowlerLegalBallsBefore, ctx.bowlerRunsConcededBefore = t.LegalBallsBefore, t.RunsConcededBefore
 		ctx.bowlerEconomyBonusBefore = economyBonus(ctx.bowlerRunsConcededBefore, ctx.bowlerLegalBallsBefore)
 
-		if err := database.DB.QueryRowx(`
-			SELECT
-				COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS over_legal_before,
-				COALESCE(SUM(total_runs - byes - leg_byes), 0) AS over_runs_before,
-				COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 WHEN GREATEST(total_runs - extras, 0) IN (4, 6) THEN 1 ELSE 0 END), 0) AS over_boundaries_before
-			FROM ball_events
-			WHERE match_id = $1
-			  AND innings_id = $2
-			  AND bowler_id = $3
-			  AND ball_no = $4
-			  AND is_deleted = FALSE
-		`, req.MatchID, req.InningsID, req.BowlerID, req.BallNo).Scan(&ctx.overLegalBallsBefore, &ctx.overRunsConcededBefore, &ctx.overBoundariesBefore); err != nil {
+		t2, err := repositories.GetBowlerOverTotals(req.MatchID.String(), req.InningsID.String(), req.BowlerID.String(), req.BallNo)
+		if err != nil {
 			return ctx, err
 		}
+		ctx.overLegalBallsBefore, ctx.overRunsConcededBefore, ctx.overBoundariesBefore = t2.OverLegalBefore, t2.OverRunsBefore, t2.OverBoundariesBefore
 	}
 
 	return ctx, nil
 }
 
 func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (int, error) {
-	rows, err := database.DB.Queryx(`
-		SELECT CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END AS runs_off_bat
-		FROM ball_events
-		WHERE match_id = $1
-		  AND innings_id = $2
-		  AND striker_id = $3
-		  AND is_deleted = FALSE
-		ORDER BY created_at DESC
-		LIMIT 24
-	`, req.MatchID, req.InningsID, req.StrikerID)
+	items, err := repositories.ListRecentRunsOffBatForStriker(req.MatchID.String(), req.InningsID.String(), req.StrikerID.String(), 24)
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
 
 	count := 0
-	for rows.Next() {
-		var runsOffBat int
-		if err := rows.Scan(&runsOffBat); err != nil {
-			return 0, err
-		}
+	for _, runsOffBat := range items {
 		if boundaryType == "four" && runsOffBat == 4 {
 			count++
 			continue
@@ -173,27 +136,13 @@ func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (i
 }
 
 func countConsecutiveBowlerConcededBoundary(req dto.BallRequest, boundaryType string) (int, error) {
-	rows, err := database.DB.Queryx(`
-		SELECT CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END AS runs_off_bat
-		FROM ball_events
-		WHERE match_id = $1
-		  AND innings_id = $2
-		  AND bowler_id = $3
-		  AND is_deleted = FALSE
-		ORDER BY created_at DESC
-		LIMIT 24
-	`, req.MatchID, req.InningsID, req.BowlerID)
+	items, err := repositories.ListRecentRunsOffBatForBowler(req.MatchID.String(), req.InningsID.String(), req.BowlerID.String(), 24)
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
 
 	count := 0
-	for rows.Next() {
-		var runsOffBat int
-		if err := rows.Scan(&runsOffBat); err != nil {
-			return 0, err
-		}
+	for _, runsOffBat := range items {
 		if boundaryType == "four" && runsOffBat == 4 {
 			count++
 			continue
@@ -208,27 +157,13 @@ func countConsecutiveBowlerConcededBoundary(req dto.BallRequest, boundaryType st
 }
 
 func countConsecutiveBowlerExtras(req dto.BallRequest) (int, error) {
-	rows, err := database.DB.Queryx(`
-		SELECT ball_type
-		FROM ball_events
-		WHERE match_id = $1
-		  AND innings_id = $2
-		  AND bowler_id = $3
-		  AND is_deleted = FALSE
-		ORDER BY created_at DESC
-		LIMIT 24
-	`, req.MatchID, req.InningsID, req.BowlerID)
+	items, err := repositories.ListRecentBallTypesForBowler(req.MatchID.String(), req.InningsID.String(), req.BowlerID.String(), 24)
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
 
 	count := 0
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
-			return 0, err
-		}
+	for _, t := range items {
 		bt := strings.ToLower(strings.TrimSpace(t))
 		if bt == "wide" || bt == "no_ball" {
 			count++
@@ -240,28 +175,13 @@ func countConsecutiveBowlerExtras(req dto.BallRequest) (int, error) {
 }
 
 func countConsecutiveBowlerWicketsInOver(req dto.BallRequest) (int, error) {
-	rows, err := database.DB.Queryx(`
-		SELECT is_wicket
-		FROM ball_events
-		WHERE match_id = $1
-		  AND innings_id = $2
-		  AND bowler_id = $3
-		  AND ball_no = $4
-		  AND is_deleted = FALSE
-		ORDER BY created_at DESC
-		LIMIT 24
-	`, req.MatchID, req.InningsID, req.BowlerID, req.BallNo)
+	items, err := repositories.ListRecentWicketsForBowlerInOver(req.MatchID.String(), req.InningsID.String(), req.BowlerID.String(), req.BallNo, 24)
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
 
 	count := 0
-	for rows.Next() {
-		var isWicket bool
-		if err := rows.Scan(&isWicket); err != nil {
-			return 0, err
-		}
+	for _, isWicket := range items {
 		if isWicket {
 			count++
 			continue
