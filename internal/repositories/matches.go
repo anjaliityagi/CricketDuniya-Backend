@@ -100,6 +100,13 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 			m.team_b_id AS team_b_match_team_id,
 			m.location,
 			m.status,
+			CASE
+				WHEN m.status = 'completed' THEN 'completed'
+				WHEN EXISTS (
+					SELECT 1 FROM super_overs so WHERE so.match_id = m.id
+				) THEN 'super_over_' || COALESCE((SELECT MAX(so2.super_over_no) FROM super_overs so2 WHERE so2.match_id = m.id), 1)::TEXT
+				ELSE 'regular'
+			END AS match_phase,
 			m.match_date,
 			m.overs_per_innings,
 			m.toss_decision,
@@ -202,6 +209,13 @@ func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
 		m.team_b_id AS team_b_match_team_id,
 		m.location,
 		m.status,
+		CASE
+			WHEN m.status = 'completed' THEN 'completed'
+			WHEN EXISTS (
+				SELECT 1 FROM super_overs so WHERE so.match_id = m.id
+			) THEN 'super_over_' || COALESCE((SELECT MAX(so2.super_over_no) FROM super_overs so2 WHERE so2.match_id = m.id), 1)::TEXT
+			ELSE 'regular'
+		END AS match_phase,
 		m.match_date,
 		m.overs_per_innings,
 		m.toss_decision,
@@ -247,6 +261,8 @@ func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
 		i.id,
 		i.match_id,
 		i.innings_no,
+		(so.id IS NOT NULL) AS is_super_over,
+		so.super_over_no,
 		i.batting_team_id,
 		i.bowling_team_id,
 		COALESCE(i.total_runs, 0) AS total_runs,
@@ -255,6 +271,7 @@ func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
 		COALESCE(s.current_over, FLOOR(COALESCE(s.legal_balls, legal_totals.legal_balls, 0) / 6.0)::INT) AS current_over,
 		COALESCE(s.current_ball, MOD(COALESCE(s.legal_balls, legal_totals.legal_balls, 0), 6)) AS current_ball
 	FROM innings i
+	LEFT JOIN super_overs so ON so.innings_id = i.id
 	LEFT JOIN innings_state s ON s.innings_id = i.id
 	LEFT JOIN LATERAL (
 		SELECT COALESCE(SUM(CASE WHEN COALESCE(be.ball_type, 'normal') NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0)::INT AS legal_balls

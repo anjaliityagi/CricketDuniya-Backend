@@ -181,7 +181,7 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		return nil, err
 	}
 
-	if inningsCompleted && inningsMeta.InningsNo == 2 {
+	if inningsCompleted && inningsMeta.InningsNo >= 2 {
 		if err := autoCompleteMatchIfNeeded(req.MatchID.String(), inningsMeta, matchUpdate.InningsRuns); err != nil {
 			return nil, err
 		}
@@ -226,6 +226,30 @@ func getInningsMeta(tx *sqlx.Tx, inningsID uuid.UUID) (*inningsMeta, error) {
 
 func ensureNextInningsTx(tx *sqlx.Tx, meta *inningsMeta, firstInningsRuns int) error {
 	if meta.InningsNo != 1 {
+		// Super over: after first innings of each super over, create the chase innings.
+		if meta.IsSuperOver && meta.InningsNo%2 == 1 {
+			nextInningsNo := meta.InningsNo + 1
+			count, err := repositories.CountInningsByNoTx(tx, meta.MatchID, nextInningsNo)
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				return nil
+			}
+			target := firstInningsRuns + 1
+			if err := repositories.InsertInningsTx(tx, meta.MatchID, meta.BowlingTeamID, meta.BattingTeamID, nextInningsNo, &target); err != nil {
+				return err
+			}
+			inningsID, err := repositories.GetInningsIDByNoTx(tx, meta.MatchID, nextInningsNo)
+			if err != nil {
+				return err
+			}
+			superOverNo := 1
+			if meta.SuperOverNo != nil {
+				superOverNo = *meta.SuperOverNo
+			}
+			return repositories.LinkSuperOverToInningsTx(tx, meta.MatchID, inningsID, meta.BowlingTeamID, meta.BattingTeamID, superOverNo)
+		}
 		return nil
 	}
 
@@ -647,6 +671,52 @@ func autoCompleteMatchIfNeeded(matchID string, meta *inningsMeta, secondInningsR
 }
 
 func determineWinnerMatchTeamID(matchID string, meta *inningsMeta, secondInningsRuns int) (string, error) {
+	// Regular match innings 2 tie triggers super over flow.
+	if meta.InningsNo == 2 {
+		firstInningsRuns, err := repositories.GetFirstInningsRuns(matchID)
+		if err != nil {
+			return "", err
+		}
+		if secondInningsRuns > firstInningsRuns {
+			return meta.BattingTeamID, nil
+		}
+		if secondInningsRuns < firstInningsRuns {
+			return meta.BowlingTeamID, nil
+		}
+		// Tie: create super over 1 (two innings: 3 and 4), do not finalize match yet.
+		if err := createNextSuperOver(meta.MatchID, 1); err != nil {
+			return "", err
+		}
+		return "", nil
+	}
+
+	// Super over completion check: only decide after the second innings of that super over.
+	if meta.IsSuperOver {
+		if meta.InningsNo%2 == 1 {
+			return "", nil
+		}
+		superOverNo := 1
+		if meta.SuperOverNo != nil {
+			superOverNo = *meta.SuperOverNo
+		}
+		firstSOInningsNo := meta.InningsNo - 1
+		firstSORuns, err := repositories.GetInningsRunsByNo(meta.MatchID, firstSOInningsNo)
+		if err != nil {
+			return "", err
+		}
+		if secondInningsRuns > firstSORuns {
+			return meta.BattingTeamID, nil
+		}
+		if secondInningsRuns < firstSORuns {
+			return meta.BowlingTeamID, nil
+		}
+		// Tied super over: keep creating next super over until winner is found.
+		if err := createNextSuperOver(meta.MatchID, superOverNo+1); err != nil {
+			return "", err
+		}
+		return "", nil
+	}
+
 	if meta.TargetRuns != nil {
 		if secondInningsRuns >= *meta.TargetRuns {
 			return meta.BattingTeamID, nil
@@ -665,6 +735,43 @@ func determineWinnerMatchTeamID(matchID string, meta *inningsMeta, secondInnings
 		return meta.BowlingTeamID, nil
 	}
 	return "", nil
+}
+
+func createNextSuperOver(matchID string, superOverNo int) error {
+	tx, err := repositories.BeginTx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	matchTeams, err := repositories.GetMatchTeamsTx(tx, matchID)
+	if err != nil {
+		return err
+	}
+
+	// super over innings numbers: 3/4 for SO1, 5/6 for SO2
+	firstInningsNo := 3 + (superOverNo-1)*2
+
+	count, err := repositories.CountInningsByNoTx(tx, matchID, firstInningsNo)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return tx.Commit()
+	}
+
+	if err := repositories.InsertInningsTx(tx, matchID, matchTeams.TeamAID, matchTeams.TeamBID, firstInningsNo, nil); err != nil {
+		return err
+	}
+	inningsID, err := repositories.GetInningsIDByNoTx(tx, matchID, firstInningsNo)
+	if err != nil {
+		return err
+	}
+	if err := repositories.LinkSuperOverToInningsTx(tx, matchID, inningsID, matchTeams.TeamAID, matchTeams.TeamBID, superOverNo); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func strPtr(v string) *string { return &v }

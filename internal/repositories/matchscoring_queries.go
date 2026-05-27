@@ -15,6 +15,8 @@ type InningsMeta struct {
 	BowlingTeamID   string `db:"bowling_team_id"`
 	OversPerInnings int    `db:"overs_per_innings"`
 	TargetRuns      *int   `db:"target_runs"`
+	IsSuperOver     bool   `db:"is_super_over"`
+	SuperOverNo     *int   `db:"super_over_no"`
 }
 
 type UndoBall struct {
@@ -34,9 +36,13 @@ func GetInningsMetaTx(tx *sqlx.Tx, inningsID uuid.UUID) (*InningsMeta, error) {
 	var m InningsMeta
 	err := tx.Get(&m, `
 		SELECT i.match_id, i.innings_no, i.batting_team_id, i.bowling_team_id,
-			   m.overs_per_innings, i.target_runs
+			   CASE WHEN so.id IS NULL THEN m.overs_per_innings ELSE 1 END AS overs_per_innings,
+			   i.target_runs,
+			   (so.id IS NOT NULL) AS is_super_over,
+			   so.super_over_no
 		FROM innings i
 		JOIN matches m ON m.id = i.match_id
+		LEFT JOIN super_overs so ON so.innings_id = i.id
 		WHERE i.id = $1
 	`, inningsID)
 	if err != nil {
@@ -58,6 +64,61 @@ func InsertSecondInningsTx(tx *sqlx.Tx, matchID, battingTeamID, bowlingTeamID st
 		) VALUES ($1, $2, $3, 2, $4, 'live', NOW())
 	`, matchID, battingTeamID, bowlingTeamID, targetRuns)
 	return err
+}
+
+func CountInningsByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
+	var c int
+	err := tx.Get(&c, `SELECT COUNT(1) FROM innings WHERE match_id = $1 AND innings_no = $2`, matchID, inningsNo)
+	return c, err
+}
+
+func InsertInningsTx(tx *sqlx.Tx, matchID, battingTeamID, bowlingTeamID string, inningsNo int, targetRuns *int) error {
+	_, err := tx.Exec(`
+		INSERT INTO innings (
+			match_id, batting_team_id, bowling_team_id, innings_no, target_runs, status, started_at
+		) VALUES ($1, $2, $3, $4, $5, 'live', NOW())
+	`, matchID, battingTeamID, bowlingTeamID, inningsNo, targetRuns)
+	return err
+}
+
+type MatchTeams struct {
+	TeamAID string `db:"team_a_id"`
+	TeamBID string `db:"team_b_id"`
+}
+
+func GetMatchTeamsTx(tx *sqlx.Tx, matchID string) (*MatchTeams, error) {
+	var t MatchTeams
+	if err := tx.Get(&t, `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`, matchID); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func GetMaxSuperOverNoTx(tx *sqlx.Tx, matchID string) (int, error) {
+	var n int
+	err := tx.Get(&n, `SELECT COALESCE(MAX(super_over_no), 0) FROM super_overs WHERE match_id = $1`, matchID)
+	return n, err
+}
+
+func LinkSuperOverToInningsTx(tx *sqlx.Tx, matchID string, inningsID uuid.UUID, battingTeamID, bowlingTeamID string, superOverNo int) error {
+	_, err := tx.Exec(`
+		INSERT INTO super_overs (
+			match_id, innings_id, batting_match_team_id, bowling_match_team_id, super_over_no, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+	`, matchID, inningsID, battingTeamID, bowlingTeamID, superOverNo)
+	return err
+}
+
+func GetInningsIDByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := tx.Get(&id, `SELECT id FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`, matchID, inningsNo)
+	return id, err
+}
+
+func GetInningsRunsByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
+	var runs int
+	err := tx.Get(&runs, `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`, matchID, inningsNo)
+	return runs, err
 }
 
 func GetPreviousOverBowlerIDTx(tx *sqlx.Tx, inningsID uuid.UUID) (string, error) {

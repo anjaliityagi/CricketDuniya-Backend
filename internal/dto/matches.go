@@ -38,6 +38,7 @@ type MatchResponse struct {
 	Location *string `db:"location" json:"location"`
 
 	Status string `db:"status" json:"status"`
+	Phase  string `db:"match_phase" json:"match_phase"`
 
 	MatchDate *time.Time `db:"match_date" json:"match_date"`
 
@@ -65,6 +66,8 @@ type InningsResponse struct {
 	ID                 string  `db:"id" json:"id"`
 	MatchID            string  `db:"match_id" json:"match_id"`
 	InningsNo          int     `db:"innings_no" json:"innings_no"`
+	IsSuperOver        bool    `db:"is_super_over" json:"is_super_over"`
+	SuperOverNo        *int    `db:"super_over_no" json:"super_over_no,omitempty"`
 	BattingMatchTeamID *string `db:"batting_team_id" json:"batting_match_team_id"`
 	BowlingMatchTeamID *string `db:"bowling_team_id" json:"bowling_match_team_id"`
 	TotalRuns          int     `db:"total_runs" json:"total_runs"`

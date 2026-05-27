@@ -346,4 +346,10 @@ func GetFirstInningsRuns(matchID string) (int, error) {
 	return runs, err
 }
 
+func GetInningsRunsByNo(matchID string, inningsNo int) (int, error) {
+	var runs int
+	err := database.DB.Get(&runs, `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`, matchID, inningsNo)
+	return runs, err
+}
+
 func IsNoRows(err error) bool { return err == sql.ErrNoRows }
