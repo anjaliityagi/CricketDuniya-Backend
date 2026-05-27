@@ -19,9 +19,8 @@ type TeamPlayerResponse struct {
 	BattingStyle   *string    `db:"batting_style" json:"batting_style,omitempty"`
 	BowlingStyle   *string    `db:"bowling_style" json:"bowling_style,omitempty"`
 	IsCaptain      bool       `db:"is_captain" json:"is_captain"`
-	IsWicketKeeper bool       `db:"is_wicket_keeper" json:"is_wicket_keeper"`
+	IsUmpire       bool       `db:"is_umpire" json:"is_umpire"`
 	IsPlayingXI    bool       `db:"is_playing_xi" json:"is_playing_xi"`
-	IsSubstitute   bool       `db:"is_substitute" json:"is_substitute"`
 	BattingOrder   *int       `db:"batting_order" json:"batting_order,omitempty"`
 	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
 	RemovedAt      *time.Time `db:"removed_at" json:"removed_at,omitempty"`
@@ -49,7 +48,7 @@ type AssignCaptainRequest struct {
 	TeamID string `json:"team_id" binding:"required"`
 }
 
-type AssignWicketKeeperRequest struct {
+type AssignUmpireRequest struct {
 	TeamID string `json:"team_id" binding:"required"`
 }
 

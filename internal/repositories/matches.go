@@ -88,6 +88,8 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 	baseQuery := `
 		SELECT
 			m.id,
+			m.host_user_id,
+			m.host_user_id AS created_by,
 			m.team_a_id,
 			 ta_legacy.name AS team_a_name,
 			m.team_b_id,
@@ -188,6 +190,8 @@ func GetMatchDetailByID(matchID string) (*dto.MatchResponse, error) {
 	query := `
 	SELECT
 		m.id,
+		m.host_user_id,
+		m.host_user_id AS created_by,
 		m.team_a_id,
 		ta.name AS team_a_name,
 		m.team_b_id,
@@ -459,7 +463,7 @@ func GetMatchSquad(matchID string) ([]dto.MatchSquadPlayer, error) {
 		u.phone_number,
 		COALESCE(tp.is_playing_xi, FALSE) AS is_playing_xi,
 		COALESCE(tp.is_captain, FALSE) AS is_captain,
-		COALESCE(tp.is_wicket_keeper, FALSE) AS is_wicket_keeper,
+		COALESCE(tp.is_umpire, FALSE) AS is_umpire,
 		tp.batting_order
 	FROM team_players tp
 	LEFT JOIN users u ON u.id = tp.player_id
@@ -492,7 +496,7 @@ func UpdateMatchLineup(matchID string, players []dto.UpdateLineupPlayer) error {
 			SET
 				is_playing_xi = $1,
 				is_captain = $2,
-				is_wicket_keeper = $3,
+				is_umpire = $3,
 				batting_order = $4,
 				updated_at = NOW()
 			WHERE tp.id = $5
@@ -501,7 +505,7 @@ func UpdateMatchLineup(matchID string, players []dto.UpdateLineupPlayer) error {
 				UNION
 				SELECT team_b_id FROM matches WHERE id = $6
 			  )
-		`, p.IsPlayingXI, p.IsCaptain, p.IsWicketKeeper, p.BattingOrder, p.MatchTeamPlayerID, matchID)
+		`, p.IsPlayingXI, p.IsCaptain, p.IsUmpire, p.BattingOrder, p.MatchTeamPlayerID, matchID)
 		if err != nil {
 			return err
 		}

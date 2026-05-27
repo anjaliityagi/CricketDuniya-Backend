@@ -20,6 +20,9 @@ type GetMatchesQuery struct {
 type MatchResponse struct {
 	ID string `db:"id" json:"id"`
 
+	HostUserID string `db:"host_user_id" json:"host_user_id"`
+	CreatedBy  string `db:"created_by" json:"created_by"`
+
 	TeamAID   *string `db:"team_a_id" json:"team_a_id"`
 	TeamAName *string `db:"team_a_name" json:"team_a_name"`
 
@@ -119,7 +122,7 @@ type MatchSquadPlayer struct {
 	PhoneNumber       *string `db:"phone_number" json:"phone_number"`
 	IsPlayingXI       bool    `db:"is_playing_xi" json:"is_playing_xi"`
 	IsCaptain         bool    `db:"is_captain" json:"is_captain"`
-	IsWicketKeeper    bool    `db:"is_wicket_keeper" json:"is_wicket_keeper"`
+	IsUmpire          bool    `db:"is_umpire" json:"is_umpire"`
 	BattingOrder      *int    `db:"batting_order" json:"batting_order"`
 }
 
@@ -127,7 +130,7 @@ type UpdateLineupPlayer struct {
 	MatchTeamPlayerID string `json:"match_team_player_id" binding:"required"`
 	IsPlayingXI       bool   `json:"is_playing_xi"`
 	IsCaptain         bool   `json:"is_captain"`
-	IsWicketKeeper    bool   `json:"is_wicket_keeper"`
+	IsUmpire          bool   `json:"is_umpire"`
 	BattingOrder      *int   `json:"batting_order"`
 }
 

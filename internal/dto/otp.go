@@ -1,7 +1,5 @@
 package dto
 
-// internal/dto/auth.go
-
 type ForgotPasswordRequest struct {
 	Phone string `json:"phone" binding:"required"`
 }

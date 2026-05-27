@@ -161,12 +161,12 @@ func AssignCaptain(
 	)
 }
 
-func AssignWicketKeeper(
+func AssignUmpire(
 	teamID string,
 	playerID string,
 ) error {
 
-	return repositories.AssignWicketKeeper(
+	return repositories.AssignUmpire(
 		teamID,
 		playerID,
 	)

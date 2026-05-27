@@ -10,7 +10,7 @@ type MatchPlayer struct {
 	TeamID    *string `db:"team_id" json:"team_id"`
 	IsHost    bool    `db:"is_host" json:"is_host"`
 	IsCaptain bool    `db:"is_captain" json:"is_captain"`
-	//IsWicketkeeper bool       `db:"is_wicketkeeper" json:"is_wicketkeeper"`
+	//IsUmpire     bool       `db:"is_umpire" json:"is_umpire"`
 	CreatedAt time.Time  `db:"created_at" json:"created_at"`
 	RemovedAt *time.Time `db:"removed_at" json:"removed_at,omitempty"`
 }

@@ -11,16 +11,18 @@ func SaveOTP(phone string, otp string) error {
 	INSERT INTO otp_codes (
 		phone,
 		otp_code,
+		purpose,
 		expires_at,
-		used
+		is_used
 	)
-	VALUES ($1, $2, $3, false)
+	VALUES ($1, $2, $3, $4, false)
 	`
 
 	_, err := database.DB.Exec(
 		query,
 		phone,
 		otp,
+		"forgot_password",
 		time.Now().Add(5*time.Minute),
 	)
 
@@ -34,7 +36,7 @@ func VerifyOTP(phone string, otp string) (bool, error) {
 	FROM otp_codes
 	WHERE phone = $1
 	  AND otp_code = $2
-	  AND used = false
+	  AND is_used = false
 	  AND expires_at > NOW()
 	`
 
@@ -53,7 +55,7 @@ func MarkOTPUsed(phone string, otp string) error {
 
 	query := `
 	UPDATE otp_codes
-	SET used = true
+	SET is_used = true
 	WHERE phone = $1
 	  AND otp_code = $2
 	`

@@ -16,8 +16,7 @@ func GetPlayersByTeamID(teamID string) ([]dto.TeamPlayerResponse, error) {
 		COALESCE(u.name, '') AS name,
 		u.phone_number,
 		COALESCE(tp.is_captain, FALSE) AS is_captain,
-		COALESCE(tp.is_wicket_keeper, FALSE) AS is_wicket_keeper,
-		COALESCE(tp.is_substitute, FALSE) AS is_substitute,
+		COALESCE(tp.is_umpire, FALSE) AS is_umpire,
 		tp.batting_order,
 		tp.created_at,
 		NULL::TIMESTAMP AS removed_at

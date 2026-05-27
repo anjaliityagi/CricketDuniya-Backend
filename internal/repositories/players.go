@@ -119,14 +119,14 @@ func AssignCaptain(
 	return err
 }
 
-func AssignWicketKeeper(
+func AssignUmpire(
 	teamID string,
 	playerID string,
 ) error {
 
 	resetQuery := `
 	UPDATE team_players
-	SET is_wicket_keeper = false
+	SET is_umpire = false
 	WHERE team_id = $1
 	`
 
@@ -141,7 +141,7 @@ func AssignWicketKeeper(
 
 	assignQuery := `
 	UPDATE team_players
-	SET is_wicket_keeper = true
+	SET is_umpire = true
 	WHERE team_id = $1
 	AND player_id = $2
 	`

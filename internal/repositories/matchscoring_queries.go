@@ -82,7 +82,23 @@ func GetPreviousOverBowlerIDTx(tx *sqlx.Tx, inningsID uuid.UUID) (string, error)
 }
 
 func GetInningsStateForUpdateTx(tx *sqlx.Tx, inningsID uuid.UUID, dst interface{}) error {
-	return tx.Get(dst, `SELECT * FROM innings_state WHERE innings_id = $1 FOR UPDATE`, inningsID)
+	return tx.Get(dst, `
+		SELECT
+			innings_id,
+			striker_id,
+			non_striker_id,
+			bowler_id,
+			total_runs,
+			total_wickets,
+			legal_balls,
+			current_over,
+			current_ball,
+			status,
+			updated_at
+		FROM innings_state
+		WHERE innings_id = $1
+		FOR UPDATE
+	`, inningsID)
 }
 
 func InsertInitialInningsStateTx(tx *sqlx.Tx, req dto.BallInputRequest) error {
@@ -148,7 +164,22 @@ func UpdateInningsTotalsStatusTx(tx *sqlx.Tx, inningsID uuid.UUID, runs, wickets
 }
 
 func GetInningsStateTx(tx *sqlx.Tx, inningsID uuid.UUID, dst interface{}) error {
-	return tx.Get(dst, `SELECT * FROM innings_state WHERE innings_id = $1`, inningsID)
+	return tx.Get(dst, `
+		SELECT
+			innings_id,
+			striker_id,
+			non_striker_id,
+			bowler_id,
+			total_runs,
+			total_wickets,
+			legal_balls,
+			current_over,
+			current_ball,
+			status,
+			updated_at
+		FROM innings_state
+		WHERE innings_id = $1
+	`, inningsID)
 }
 
 func GetLastUndoBallTx(tx *sqlx.Tx, inningsID uuid.UUID) (*UndoBall, error) {

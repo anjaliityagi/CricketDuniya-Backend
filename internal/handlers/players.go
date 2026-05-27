@@ -158,11 +158,11 @@ func AssignCaptain(c *gin.Context) {
 	})
 }
 
-func AssignWicketKeeper(c *gin.Context) {
+func AssignUmpire(c *gin.Context) {
 
 	playerID := c.Param("player_id")
 
-	var req dto.AssignWicketKeeperRequest
+	var req dto.AssignUmpireRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 
@@ -173,7 +173,7 @@ func AssignWicketKeeper(c *gin.Context) {
 		return
 	}
 
-	err := services.AssignWicketKeeper(
+	err := services.AssignUmpire(
 		req.TeamID,
 		playerID,
 	)
@@ -188,6 +188,6 @@ func AssignWicketKeeper(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "wicketkeeper assigned successfully",
+		"message": "umpire assigned successfully",
 	})
 }

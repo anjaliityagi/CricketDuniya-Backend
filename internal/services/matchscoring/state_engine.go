@@ -99,23 +99,29 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	nextNonStriker := activeNonStriker
 	nextBowler := activeBowler
 	needsNextBatter := false
+	noBatterLeft := false
 	needsReplacement := req.IsWicket || strings.EqualFold(req.DismissalType, "retired_hurt")
 
 	if needsReplacement && req.DismissedPlayerID != nil {
 		dismissedID := req.DismissedPlayerID.String()
+		if req.NextBatterID == nil && dismissedID == nextStriker && dismissedID == nextNonStriker {
+			noBatterLeft = true
+		}
 		if dismissedID == nextStriker {
 			if req.NextBatterID == nil {
-				return nil, errors.New("next_batter_id is required for striker dismissal")
+				nextStriker = nextNonStriker
+			} else {
+				nextStriker = req.NextBatterID.String()
+				needsNextBatter = true
 			}
-			nextStriker = req.NextBatterID.String()
-			needsNextBatter = true
 		}
 		if dismissedID == nextNonStriker {
 			if req.NextBatterID == nil {
-				return nil, errors.New("next_batter_id is required for non-striker dismissal")
+				nextNonStriker = nextStriker
+			} else {
+				nextNonStriker = req.NextBatterID.String()
+				needsNextBatter = true
 			}
-			nextNonStriker = req.NextBatterID.String()
-			needsNextBatter = true
 		}
 	}
 
@@ -144,10 +150,10 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	if nextLegalBalls >= overLimitBalls {
 		inningsCompleted = true
 	}
-
-	if matchUpdate.InningsWickets >= 10 {
+	if noBatterLeft {
 		inningsCompleted = true
 	}
+
 	if inningsMeta.TargetRuns != nil && inningsMeta.InningsNo == 2 && matchUpdate.InningsRuns >= *inningsMeta.TargetRuns {
 		inningsCompleted = true
 	}
@@ -288,8 +294,8 @@ func validateActorTeams(tx *sqlx.Tx, battingTeamID, bowlingTeamID, strikerID, no
 	if err != nil {
 		return err
 	}
-	if c != 2 {
-		return errors.New("strikers must belong to batting team")
+	if c < 1 {
+		return errors.New("striker/non_striker must belong to batting team")
 	}
 	c, err = repositories.CountBowlerOnTeamTx(tx, bowlerID, bowlingTeamID)
 	if err != nil {
@@ -440,9 +446,6 @@ func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRe
 
 	if finalStrikerID == "" || finalNonStrikerID == "" || finalBowlerID == "" {
 		return nil, errors.New("striker_id, non_striker_id and bowler_id are required to set innings state")
-	}
-	if finalStrikerID == finalNonStrikerID {
-		return nil, errors.New("striker and non_striker must be different players")
 	}
 	if err := validateActorTeams(tx, meta.BattingTeamID, meta.BowlingTeamID, finalStrikerID, finalNonStrikerID, finalBowlerID); err != nil {
 		return nil, err

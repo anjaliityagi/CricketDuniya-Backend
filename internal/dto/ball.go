@@ -40,21 +40,20 @@ type BallInputRequest struct {
 	InningsID uuid.UUID `json:"innings_id" binding:"required"`
 	MatchID   uuid.UUID `json:"match_id" binding:"required"`
 
-	// optional when state is already initialized; required at innings start
 	StrikerID    *uuid.UUID `json:"striker_id"`
 	NonStrikerID *uuid.UUID `json:"non_striker_id"`
 	BowlerID     *uuid.UUID `json:"bowler_id"`
 
-	BallType   string `json:"ball_type" binding:"required"` // normal, wide, no_ball, bye, leg_bye, dead_ball, wicket, retired_hurt
+	BallType   string `json:"ball_type" binding:"required"`
 	RunsOffBat int    `json:"runs_off_bat"`
 	Extras     int    `json:"extras"`
-	TotalRuns  int    `json:"total_runs"` // optional; if 0 backend derives from runs_off_bat + extras
+	TotalRuns  int    `json:"total_runs"`
 
 	IsWicket          bool       `json:"is_wicket"`
 	DismissalType     string     `json:"dismissal_type"`
 	DismissedPlayerID *uuid.UUID `json:"dismissed_player_id"`
 	FielderID         *uuid.UUID `json:"fielder_id"`
-	NextBatterID      *uuid.UUID `json:"next_batter_id"` // required for striker dismissal
+	NextBatterID      *uuid.UUID `json:"next_batter_id"`
 }
 
 type InningsStateResponse struct {
