@@ -42,6 +42,10 @@ type UserBattingStats struct {
 	HighScore  int     `db:"high_score" json:"high_score"`
 	Runs       int     `db:"runs" json:"runs"`
 	Innings    int     `db:"innings" json:"innings"`
+	Ducks      int     `db:"ducks" json:"ducks"`
+	Thirties   int     `db:"thirties" json:"thirties"`
+	Fifties    int     `db:"fifties" json:"fifties"`
+	Hundreds   int     `db:"hundreds" json:"hundreds"`
 	Fours      int     `db:"fours" json:"fours"`
 	Sixes      int     `db:"sixes" json:"sixes"`
 }

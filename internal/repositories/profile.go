@@ -119,6 +119,13 @@ func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
 		COALESCE(MAX(runs_scored),0)::INT AS high_score,
 		COALESCE(SUM(runs_scored),0)::INT AS runs,
 		COUNT(*)::INT AS innings,
+		COUNT(*) FILTER (
+			WHERE COALESCE(runs_scored, 0) = 0
+			AND (COALESCE(balls_faced, 0) > 0 OR COALESCE(is_out, FALSE))
+		)::INT AS ducks,
+		COUNT(*) FILTER (WHERE COALESCE(runs_scored, 0) >= 30 AND COALESCE(runs_scored, 0) < 50)::INT AS thirties,
+		COUNT(*) FILTER (WHERE COALESCE(runs_scored, 0) >= 50 AND COALESCE(runs_scored, 0) < 100)::INT AS fifties,
+		COUNT(*) FILTER (WHERE COALESCE(runs_scored, 0) >= 100)::INT AS hundreds,
 		COALESCE(SUM(fours),0)::INT AS fours,
 		COALESCE(SUM(sixes),0)::INT AS sixes
 	FROM player_match_stats pms
