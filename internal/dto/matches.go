@@ -107,14 +107,49 @@ type RecentBall struct {
 	DismissalType *string `db:"dismissal_type" json:"dismissal_type"`
 }
 
+type ScorecardDelivery struct {
+	ID                string  `db:"id" json:"id"`
+	InningsID         string  `db:"innings_id" json:"innings_id"`
+	BallNo            int     `db:"ball_no" json:"ball_no"`
+	DeliveryNo        int     `db:"delivery_no" json:"delivery_no"`
+	BallType          string  `db:"ball_type" json:"ball_type"`
+	RunsScored        int     `db:"runs_scored" json:"runs_scored"`
+	RunsOffBat        int     `db:"runs_off_bat" json:"runs_off_bat"`
+	Extras            int     `db:"extras" json:"extras"`
+	TotalRuns         int     `db:"total_runs" json:"total_runs"`
+	IsDotBall         bool    `db:"is_dot_ball" json:"is_dot_ball"`
+	IsBoundaryFour    bool    `db:"is_boundary_four" json:"is_boundary_four"`
+	IsBoundarySix     bool    `db:"is_boundary_six" json:"is_boundary_six"`
+	IsWicket          bool    `db:"is_wicket" json:"is_wicket"`
+	StrikerID         *string `db:"striker_id" json:"striker_id"`
+	NonStrikerID      *string `db:"non_striker_id" json:"non_striker_id"`
+	BowlerID          *string `db:"bowler_id" json:"bowler_id"`
+	DismissalType     *string `db:"dismissal_type" json:"dismissal_type"`
+	DismissedPlayerID *string `db:"dismissed_player_id" json:"dismissed_player_id"`
+	FielderID         *string `db:"fielder_id" json:"fielder_id"`
+	Wides             int     `db:"wides" json:"wides"`
+	NoBalls           int     `db:"no_balls" json:"no_balls"`
+	Byes              int     `db:"byes" json:"byes"`
+	LegByes           int     `db:"leg_byes" json:"leg_byes"`
+}
+
+type ScorecardInningsDeliveries struct {
+	InningsID   string              `json:"innings_id"`
+	InningsNo   int                 `json:"innings_no"`
+	IsSuperOver bool                `json:"is_super_over"`
+	SuperOverNo *int                `json:"super_over_no,omitempty"`
+	Deliveries  []ScorecardDelivery `json:"deliveries"`
+}
+
 type MatchScorecardResponse struct {
-	Innings             []InningsResponse      `json:"innings"`
-	Batting             []ScorecardPlayerStats `json:"batting"`
-	Bowling             []ScorecardPlayerStats `json:"bowling"`
-	RecentBalls         []RecentBall           `json:"recent_balls"`
-	CurrentStrikerID    *string                `json:"current_striker_id"`
-	CurrentNonStrikerID *string                `json:"current_non_striker_id"`
-	CurrentBowlerID     *string                `json:"current_bowler_id"`
+	Innings             []InningsResponse            `json:"innings"`
+	Batting             []ScorecardPlayerStats       `json:"batting"`
+	Bowling             []ScorecardPlayerStats       `json:"bowling"`
+	RecentBalls         []RecentBall                 `json:"recent_balls"`
+	DeliveriesByInnings []ScorecardInningsDeliveries `json:"deliveries_by_innings"`
+	CurrentStrikerID    *string                      `json:"current_striker_id"`
+	CurrentNonStrikerID *string                      `json:"current_non_striker_id"`
+	CurrentBowlerID     *string                      `json:"current_bowler_id"`
 }
 
 type MatchSquadPlayer struct {

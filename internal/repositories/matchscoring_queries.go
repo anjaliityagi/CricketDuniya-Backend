@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"CricketDuniya-Backend/internal/dto"
-	"database/sql"
+	dbsql "database/sql"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -34,7 +34,7 @@ type RebuiltInningsTotals struct {
 
 func GetInningsMetaTx(tx *sqlx.Tx, inningsID uuid.UUID) (*InningsMeta, error) {
 	var m InningsMeta
-	err := tx.Get(&m, `
+	sql := `
 		SELECT i.match_id, i.innings_no, i.batting_team_id, i.bowling_team_id,
 			   CASE WHEN so.id IS NULL THEN m.overs_per_innings ELSE 1 END AS overs_per_innings,
 			   i.target_runs,
@@ -44,7 +44,8 @@ func GetInningsMetaTx(tx *sqlx.Tx, inningsID uuid.UUID) (*InningsMeta, error) {
 		JOIN matches m ON m.id = i.match_id
 		LEFT JOIN super_overs so ON so.innings_id = i.id
 		WHERE i.id = $1
-	`, inningsID)
+	`
+	err := tx.Get(&m, sql, inningsID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,31 +54,35 @@ func GetInningsMetaTx(tx *sqlx.Tx, inningsID uuid.UUID) (*InningsMeta, error) {
 
 func CountSecondInningsTx(tx *sqlx.Tx, matchID string) (int, error) {
 	var c int
-	err := tx.Get(&c, `SELECT COUNT(1) FROM innings WHERE match_id = $1 AND innings_no = 2`, matchID)
+	sql := `SELECT COUNT(1) FROM innings WHERE match_id = $1 AND innings_no = 2`
+	err := tx.Get(&c, sql, matchID)
 	return c, err
 }
 
 func InsertSecondInningsTx(tx *sqlx.Tx, matchID, battingTeamID, bowlingTeamID string, targetRuns int) error {
-	_, err := tx.Exec(`
+	sql := `
 		INSERT INTO innings (
 			match_id, batting_team_id, bowling_team_id, innings_no, target_runs, status, started_at
 		) VALUES ($1, $2, $3, 2, $4, 'live', NOW())
-	`, matchID, battingTeamID, bowlingTeamID, targetRuns)
+	`
+	_, err := tx.Exec(sql, matchID, battingTeamID, bowlingTeamID, targetRuns)
 	return err
 }
 
 func CountInningsByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
 	var c int
-	err := tx.Get(&c, `SELECT COUNT(1) FROM innings WHERE match_id = $1 AND innings_no = $2`, matchID, inningsNo)
+	sql := `SELECT COUNT(1) FROM innings WHERE match_id = $1 AND innings_no = $2`
+	err := tx.Get(&c, sql, matchID, inningsNo)
 	return c, err
 }
 
 func InsertInningsTx(tx *sqlx.Tx, matchID, battingTeamID, bowlingTeamID string, inningsNo int, targetRuns *int) error {
-	_, err := tx.Exec(`
+	sql := `
 		INSERT INTO innings (
 			match_id, batting_team_id, bowling_team_id, innings_no, target_runs, status, started_at
 		) VALUES ($1, $2, $3, $4, $5, 'live', NOW())
-	`, matchID, battingTeamID, bowlingTeamID, inningsNo, targetRuns)
+	`
+	_, err := tx.Exec(sql, matchID, battingTeamID, bowlingTeamID, inningsNo, targetRuns)
 	return err
 }
 
@@ -88,7 +93,8 @@ type MatchTeams struct {
 
 func GetMatchTeamsTx(tx *sqlx.Tx, matchID string) (*MatchTeams, error) {
 	var t MatchTeams
-	if err := tx.Get(&t, `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`, matchID); err != nil {
+	sql := `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`
+	if err := tx.Get(&t, sql, matchID); err != nil {
 		return nil, err
 	}
 	return &t, nil
@@ -96,42 +102,47 @@ func GetMatchTeamsTx(tx *sqlx.Tx, matchID string) (*MatchTeams, error) {
 
 func GetMaxSuperOverNoTx(tx *sqlx.Tx, matchID string) (int, error) {
 	var n int
-	err := tx.Get(&n, `SELECT COALESCE(MAX(super_over_no), 0) FROM super_overs WHERE match_id = $1`, matchID)
+	sql := `SELECT COALESCE(MAX(super_over_no), 0) FROM super_overs WHERE match_id = $1`
+	err := tx.Get(&n, sql, matchID)
 	return n, err
 }
 
 func LinkSuperOverToInningsTx(tx *sqlx.Tx, matchID string, inningsID uuid.UUID, battingTeamID, bowlingTeamID string, superOverNo int) error {
-	_, err := tx.Exec(`
+	sql := `
 		INSERT INTO super_overs (
 			match_id, innings_id, batting_match_team_id, bowling_match_team_id, super_over_no, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-	`, matchID, inningsID, battingTeamID, bowlingTeamID, superOverNo)
+	`
+	_, err := tx.Exec(sql, matchID, inningsID, battingTeamID, bowlingTeamID, superOverNo)
 	return err
 }
 
 func GetInningsIDByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (uuid.UUID, error) {
 	var id uuid.UUID
-	err := tx.Get(&id, `SELECT id FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`, matchID, inningsNo)
+	sql := `SELECT id FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`
+	err := tx.Get(&id, sql, matchID, inningsNo)
 	return id, err
 }
 
 func GetInningsRunsByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
 	var runs int
-	err := tx.Get(&runs, `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`, matchID, inningsNo)
+	sql := `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`
+	err := tx.Get(&runs, sql, matchID, inningsNo)
 	return runs, err
 }
 
 func GetPreviousOverBowlerIDTx(tx *sqlx.Tx, inningsID uuid.UUID) (string, error) {
-	var bowlerID sql.NullString
-	err := tx.Get(&bowlerID, `
+	var bowlerID dbsql.NullString
+	sql := `
 		SELECT bowler_id
 		FROM ball_events
 		WHERE innings_id = $1 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT 1
-	`, inningsID)
+	`
+	err := tx.Get(&bowlerID, sql, inningsID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == dbsql.ErrNoRows {
 			return "", nil
 		}
 		return "", err
@@ -143,7 +154,7 @@ func GetPreviousOverBowlerIDTx(tx *sqlx.Tx, inningsID uuid.UUID) (string, error)
 }
 
 func GetInningsStateForUpdateTx(tx *sqlx.Tx, inningsID uuid.UUID, dst interface{}) error {
-	return tx.Get(dst, `
+	sql := `
 		SELECT
 			innings_id,
 			striker_id,
@@ -159,32 +170,36 @@ func GetInningsStateForUpdateTx(tx *sqlx.Tx, inningsID uuid.UUID, dst interface{
 		FROM innings_state
 		WHERE innings_id = $1
 		FOR UPDATE
-	`, inningsID)
+	`
+	return tx.Get(dst, sql, inningsID)
 }
 
 func InsertInitialInningsStateTx(tx *sqlx.Tx, req dto.BallInputRequest) error {
-	_, err := tx.Exec(`
+	sql := `
 		INSERT INTO innings_state (innings_id, striker_id, non_striker_id, bowler_id, total_runs, total_wickets, legal_balls, current_over, current_ball, status)
 		VALUES ($1,$2,$3,$4,0,0,0,0,0,'live')
-	`, req.InningsID, req.StrikerID, req.NonStrikerID, req.BowlerID)
+	`
+	_, err := tx.Exec(sql, req.InningsID, req.StrikerID, req.NonStrikerID, req.BowlerID)
 	return err
 }
 
 func CountStrikersOnTeamTx(tx *sqlx.Tx, strikerID, nonStrikerID, teamID string) (int, error) {
 	var c int
-	err := tx.Get(&c, `SELECT COUNT(1) FROM team_players WHERE id IN ($1,$2) AND team_id = $3 AND deleted_at IS NULL`, strikerID, nonStrikerID, teamID)
+	sql := `SELECT COUNT(1) FROM team_players WHERE id IN ($1,$2) AND team_id = $3 AND deleted_at IS NULL`
+	err := tx.Get(&c, sql, strikerID, nonStrikerID, teamID)
 	return c, err
 }
 
 func CountBowlerOnTeamTx(tx *sqlx.Tx, bowlerID, teamID string) (int, error) {
 	var c int
-	err := tx.Get(&c, `SELECT COUNT(1) FROM team_players WHERE id = $1 AND team_id = $2 AND deleted_at IS NULL`, bowlerID, teamID)
+	sql := `SELECT COUNT(1) FROM team_players WHERE id = $1 AND team_id = $2 AND deleted_at IS NULL`
+	err := tx.Get(&c, sql, bowlerID, teamID)
 	return c, err
 }
 
 func SaveBallEventTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 	var id string
-	err := tx.QueryRowx(`
+	sql := `
 		INSERT INTO ball_events (
 			id, innings_id, match_id, striker_id, non_striker_id, bowler_id,
 			ball_no, delivery_no, ball_type, runs_scored, extras, total_runs,
@@ -194,7 +209,8 @@ func SaveBallEventTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 			gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
 			$12,$13,$14,$15,$16,$17,$18,$19,$20, NOW()
 		) RETURNING id
-	`, req.InningsID, req.MatchID, req.StrikerID, req.NonStrikerID, req.BowlerID,
+	`
+	err := tx.QueryRowx(sql, req.InningsID, req.MatchID, req.StrikerID, req.NonStrikerID, req.BowlerID,
 		req.BallNo, req.DeliveryNo, req.BallType, req.RunsScored, req.Extras, req.TotalRuns,
 		req.IsDotBall, req.IsWicket, req.DismissalType, req.DismissedPlayerID, req.FielderID,
 		req.Wides, req.NoBalls, req.Byes, req.LegByes).Scan(&id)
@@ -205,27 +221,29 @@ func SaveBallEventTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 }
 
 func UpdateInningsStateAfterBallTx(tx *sqlx.Tx, inningsID uuid.UUID, strikerID, nonStrikerID, bowlerID string, runs, wickets, legalBalls, over, ball int, status string) error {
-	_, err := tx.Exec(`
+	sql := `
 		UPDATE innings_state
 		SET striker_id = $2, non_striker_id = $3, bowler_id = $4,
 			total_runs = $5, total_wickets = $6, legal_balls = $7,
 			current_over = $8, current_ball = $9, status = $10, updated_at = NOW()
 		WHERE innings_id = $1
-	`, inningsID, strikerID, nonStrikerID, bowlerID, runs, wickets, legalBalls, over, ball, status)
+	`
+	_, err := tx.Exec(sql, inningsID, strikerID, nonStrikerID, bowlerID, runs, wickets, legalBalls, over, ball, status)
 	return err
 }
 
 func UpdateInningsTotalsStatusTx(tx *sqlx.Tx, inningsID uuid.UUID, runs, wickets int, status string) error {
-	_, err := tx.Exec(`
+	sql := `
 		UPDATE innings
 		SET total_runs = $2, total_wickets = $3, status = $4
 		WHERE id = $1
-	`, inningsID, runs, wickets, status)
+	`
+	_, err := tx.Exec(sql, inningsID, runs, wickets, status)
 	return err
 }
 
 func GetInningsStateTx(tx *sqlx.Tx, inningsID uuid.UUID, dst interface{}) error {
-	return tx.Get(dst, `
+	sql := `
 		SELECT
 			innings_id,
 			striker_id,
@@ -240,18 +258,20 @@ func GetInningsStateTx(tx *sqlx.Tx, inningsID uuid.UUID, dst interface{}) error 
 			updated_at
 		FROM innings_state
 		WHERE innings_id = $1
-	`, inningsID)
+	`
+	return tx.Get(dst, sql, inningsID)
 }
 
 func GetLastUndoBallTx(tx *sqlx.Tx, inningsID uuid.UUID) (*UndoBall, error) {
 	var out UndoBall
-	err := tx.Get(&out, `
+	sql := `
 		SELECT id, striker_id, non_striker_id, bowler_id
 		FROM ball_events
 		WHERE innings_id = $1 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT 1
-	`, inningsID)
+	`
+	err := tx.Get(&out, sql, inningsID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,24 +279,27 @@ func GetLastUndoBallTx(tx *sqlx.Tx, inningsID uuid.UUID) (*UndoBall, error) {
 }
 
 func SoftDeleteBallTx(tx *sqlx.Tx, ballID string) error {
-	_, err := tx.Exec(`UPDATE ball_events SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1`, ballID)
+	sql := `UPDATE ball_events SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1`
+	_, err := tx.Exec(sql, ballID)
 	return err
 }
 
 func DeletePointEventsByBallTx(tx *sqlx.Tx, ballID string) error {
-	_, err := tx.Exec(`DELETE FROM point_events WHERE ball_event_id = $1`, ballID)
+	sql := `DELETE FROM point_events WHERE ball_event_id = $1`
+	_, err := tx.Exec(sql, ballID)
 	return err
 }
 
 func GetRebuiltInningsTotalsTx(tx *sqlx.Tx, inningsID uuid.UUID) (*RebuiltInningsTotals, error) {
 	var rebuilt RebuiltInningsTotals
-	err := tx.Get(&rebuilt, `
+	sql := `
 		SELECT COALESCE(SUM(total_runs),0) AS runs,
 			   COALESCE(SUM(CASE WHEN is_wicket THEN 1 ELSE 0 END),0) AS wickets,
 			   COALESCE(SUM(CASE WHEN COALESCE(ball_type, 'normal') NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END),0) AS legal
 		FROM ball_events
 		WHERE innings_id = $1 AND is_deleted = FALSE
-	`, inningsID)
+	`
+	err := tx.Get(&rebuilt, sql, inningsID)
 	if err != nil {
 		return nil, err
 	}
@@ -285,61 +308,67 @@ func GetRebuiltInningsTotalsTx(tx *sqlx.Tx, inningsID uuid.UUID) (*RebuiltInning
 
 func CountFutureBallsTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
 	var c int
-	err := tx.Get(&c, `
+	sql := `
 		SELECT COUNT(1)
 		FROM innings i
 		JOIN ball_events be ON be.innings_id = i.id
 		WHERE i.match_id = $1 AND i.innings_no > $2 AND be.is_deleted = FALSE
-	`, matchID, inningsNo)
+	`
+	err := tx.Get(&c, sql, matchID, inningsNo)
 	return c, err
 }
 
 func UpdateInningsStateAfterUndoTx(tx *sqlx.Tx, inningsID uuid.UUID, strikerID, nonStrikerID, bowlerID *string, runs, wickets, legalBalls, over, ball int) error {
-	_, err := tx.Exec(`
+	sql := `
 		UPDATE innings_state
 		SET striker_id = $2, non_striker_id = $3, bowler_id = $4,
 			total_runs = $5, total_wickets = $6, legal_balls = $7,
 			current_over = $8, current_ball = $9, status = 'live', updated_at = NOW()
 		WHERE innings_id = $1
-	`, inningsID, strikerID, nonStrikerID, bowlerID, runs, wickets, legalBalls, over, ball)
+	`
+	_, err := tx.Exec(sql, inningsID, strikerID, nonStrikerID, bowlerID, runs, wickets, legalBalls, over, ball)
 	return err
 }
 
 func ReopenInningsTx(tx *sqlx.Tx, inningsID uuid.UUID, runs, wickets int) error {
-	_, err := tx.Exec(`
+	sql := `
 		UPDATE innings
 		SET total_runs = $2, total_wickets = $3, status = 'live', completed_at = NULL
 		WHERE id = $1
-	`, inningsID, runs, wickets)
+	`
+	_, err := tx.Exec(sql, inningsID, runs, wickets)
 	return err
 }
 
 func DeleteFutureInningsStateTx(tx *sqlx.Tx, matchID string, inningsNo int) error {
-	_, err := tx.Exec(`
+	sql := `
 		DELETE FROM innings_state
 		WHERE innings_id IN (
 			SELECT id FROM innings WHERE match_id = $1 AND innings_no > $2
 		)
-	`, matchID, inningsNo)
+	`
+	_, err := tx.Exec(sql, matchID, inningsNo)
 	return err
 }
 
 func DeleteFutureInningsTx(tx *sqlx.Tx, matchID string, inningsNo int) error {
-	_, err := tx.Exec(`DELETE FROM innings WHERE match_id = $1 AND innings_no > $2`, matchID, inningsNo)
+	sql := `DELETE FROM innings WHERE match_id = $1 AND innings_no > $2`
+	_, err := tx.Exec(sql, matchID, inningsNo)
 	return err
 }
 
 func ReopenMatchAfterUndoTx(tx *sqlx.Tx, matchID string) error {
-	if _, err := tx.Exec(`
+	sql := `
 		UPDATE player_match_stats
 		SET fantasy_points = COALESCE(fantasy_points, 0) - COALESCE(result_points, 0),
 			result_points = 0,
 			updated_at = NOW()
 		WHERE match_id = $1
-	`, matchID); err != nil {
+	`
+	if _, err := tx.Exec(sql, matchID); err != nil {
 		return err
 	}
-	_, err := tx.Exec(`
+	sql = `
 		UPDATE matches
 		SET status = 'live',
 			winner_match_team_id = NULL,
@@ -347,12 +376,13 @@ func ReopenMatchAfterUndoTx(tx *sqlx.Tx, matchID string) error {
 			player_of_match_user_id = NULL,
 			worst_player_user_id = NULL
 		WHERE id = $1
-	`, matchID)
+	`
+	_, err := tx.Exec(sql, matchID)
 	return err
 }
 
 func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
-	_, err := tx.Exec(`
+	sql := `
 		INSERT INTO player_match_stats (match_id, player_id, team_player_id, updated_at)
 		SELECT $1, tp.player_id, tp.id, NOW()
 		FROM team_players tp
@@ -373,11 +403,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		  AND NOT EXISTS (
 			SELECT 1 FROM player_match_stats pms WHERE pms.match_id = $1 AND pms.team_player_id = tp.id
 		  )
-	`, matchID)
+	`
+	_, err := tx.Exec(sql, matchID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		UPDATE player_match_stats
 		SET runs_scored = 0, balls_faced = 0, fours = 0, sixes = 0, strike_rate = 0, is_out = FALSE,
 			overs_bowled = 0, legal_balls_bowled = 0, maidens = 0, runs_conceded = 0, wickets_taken = 0, economy = 0,
@@ -385,11 +416,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 			batting_points = 0, bowling_points = 0, fielding_points = 0, fantasy_points = COALESCE(result_points, 0),
 			updated_at = NOW()
 		WHERE match_id = $1
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		WITH batting AS (
 			SELECT be.striker_id AS team_player_id,
 				COALESCE(SUM(GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.extras, 0), 0)), 0)::INT AS runs_scored,
@@ -406,11 +438,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 			updated_at = NOW()
 		FROM batting
 		WHERE pms.match_id = $1 AND pms.team_player_id = batting.team_player_id
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		WITH dismissed AS (
 			SELECT DISTINCT dismissed_player_id AS team_player_id
 			FROM ball_events
@@ -420,11 +453,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		SET is_out = TRUE, updated_at = NOW()
 		FROM dismissed
 		WHERE pms.match_id = $1 AND pms.team_player_id = dismissed.team_player_id
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		WITH bowling AS (
 			SELECT be.bowler_id AS team_player_id,
 				COALESCE(SUM(GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.byes, 0) - COALESCE(be.leg_byes, 0), 0)), 0)::INT AS runs_conceded,
@@ -456,11 +490,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		FROM bowling
 		LEFT JOIN maiden_overs ON maiden_overs.team_player_id = bowling.team_player_id
 		WHERE pms.match_id = $1 AND pms.team_player_id = bowling.team_player_id
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		WITH fielding AS (
 			SELECT fielder_id AS team_player_id,
 				COALESCE(SUM(CASE WHEN dismissal_type = 'caught' THEN 1 ELSE 0 END), 0)::INT AS catches,
@@ -474,11 +509,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		SET catches = fielding.catches, stumping = fielding.stumping, runouts = fielding.runouts, updated_at = NOW()
 		FROM fielding
 		WHERE pms.match_id = $1 AND pms.team_player_id = fielding.team_player_id
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		WITH points AS (
 			SELECT tp.id AS team_player_id,
 				COALESCE(SUM(CASE WHEN pe.category = 'batting'::point_category THEN pe.points ELSE 0 END), 0)::INT AS batting_points,
@@ -496,6 +532,7 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 			fantasy_points = points.fantasy_points + COALESCE(pms.result_points, 0), updated_at = NOW()
 		FROM points
 		WHERE pms.match_id = $1 AND pms.team_player_id = points.team_player_id
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	return err
 }

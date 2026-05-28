@@ -27,13 +27,14 @@ func BeginTx() (*sqlx.Tx, error) { return database.DB.Beginx() }
 
 func GetBatterTotals(matchID, inningsID, strikerID string) (*BatterTotals, error) {
 	var out BatterTotals
-	err := database.DB.Get(&out, `
+	sql := `
 		SELECT
 			COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END), 0) AS runs_before,
 			COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS balls_before
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND striker_id = $3 AND is_deleted = FALSE
-	`, matchID, inningsID, strikerID)
+	`
+	err := database.DB.Get(&out, sql, matchID, inningsID, strikerID)
 	if err != nil {
 		return nil, err
 	}
@@ -42,13 +43,14 @@ func GetBatterTotals(matchID, inningsID, strikerID string) (*BatterTotals, error
 
 func GetBowlerTotals(matchID, inningsID, bowlerID string) (*BowlerTotals, error) {
 	var out BowlerTotals
-	err := database.DB.Get(&out, `
+	sql := `
 		SELECT
 			COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS legal_balls_before,
 			COALESCE(SUM(total_runs - byes - leg_byes), 0) AS runs_conceded_before
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND bowler_id = $3 AND is_deleted = FALSE
-	`, matchID, inningsID, bowlerID)
+	`
+	err := database.DB.Get(&out, sql, matchID, inningsID, bowlerID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +59,15 @@ func GetBowlerTotals(matchID, inningsID, bowlerID string) (*BowlerTotals, error)
 
 func GetBowlerOverTotals(matchID, inningsID, bowlerID string, ballNo int) (*BowlerOverTotals, error) {
 	var out BowlerOverTotals
-	err := database.DB.Get(&out, `
+	sql := `
 		SELECT
 			COALESCE(SUM(CASE WHEN ball_type NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END), 0) AS over_legal_before,
 			COALESCE(SUM(total_runs - byes - leg_byes), 0) AS over_runs_before,
 			COALESCE(SUM(CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 WHEN GREATEST(total_runs - extras, 0) IN (4, 6) THEN 1 ELSE 0 END), 0) AS over_boundaries_before
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND bowler_id = $3 AND ball_no = $4 AND is_deleted = FALSE
-	`, matchID, inningsID, bowlerID, ballNo)
+	`
+	err := database.DB.Get(&out, sql, matchID, inningsID, bowlerID, ballNo)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +75,14 @@ func GetBowlerOverTotals(matchID, inningsID, bowlerID string, ballNo int) (*Bowl
 }
 
 func ListRecentRunsOffBatForStriker(matchID, inningsID, strikerID string, limit int) ([]int, error) {
-	rows, err := database.DB.Queryx(`
+	sql := `
 		SELECT CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END AS runs_off_bat
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND striker_id = $3 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT $4
-	`, matchID, inningsID, strikerID, limit)
+	`
+	rows, err := database.DB.Queryx(sql, matchID, inningsID, strikerID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -95,13 +99,14 @@ func ListRecentRunsOffBatForStriker(matchID, inningsID, strikerID string, limit 
 }
 
 func ListRecentRunsOffBatForBowler(matchID, inningsID, bowlerID string, limit int) ([]int, error) {
-	rows, err := database.DB.Queryx(`
+	sql := `
 		SELECT CASE WHEN ball_type IN ('wide','bye','leg_bye') THEN 0 ELSE GREATEST(total_runs - extras, 0) END AS runs_off_bat
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND bowler_id = $3 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT $4
-	`, matchID, inningsID, bowlerID, limit)
+	`
+	rows, err := database.DB.Queryx(sql, matchID, inningsID, bowlerID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -118,13 +123,14 @@ func ListRecentRunsOffBatForBowler(matchID, inningsID, bowlerID string, limit in
 }
 
 func ListRecentBallTypesForBowler(matchID, inningsID, bowlerID string, limit int) ([]string, error) {
-	rows, err := database.DB.Queryx(`
+	sql := `
 		SELECT ball_type
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND bowler_id = $3 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT $4
-	`, matchID, inningsID, bowlerID, limit)
+	`
+	rows, err := database.DB.Queryx(sql, matchID, inningsID, bowlerID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -141,13 +147,14 @@ func ListRecentBallTypesForBowler(matchID, inningsID, bowlerID string, limit int
 }
 
 func ListRecentWicketsForBowlerInOver(matchID, inningsID, bowlerID string, ballNo, limit int) ([]bool, error) {
-	rows, err := database.DB.Queryx(`
+	sql := `
 		SELECT is_wicket
 		FROM ball_events
 		WHERE match_id = $1 AND innings_id = $2 AND bowler_id = $3 AND ball_no = $4 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT $5
-	`, matchID, inningsID, bowlerID, ballNo, limit)
+	`
+	rows, err := database.DB.Queryx(sql, matchID, inningsID, bowlerID, ballNo, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -165,13 +172,14 @@ func ListRecentWicketsForBowlerInOver(matchID, inningsID, bowlerID string, ballN
 
 func UpdateInningsTotalsTx(tx *sqlx.Tx, inningsID string, runsDelta, wicketsDelta int) (int, int, error) {
 	var runs, wickets int
-	err := tx.QueryRowx(`
+	sql := `
 		UPDATE innings
 		SET total_runs = COALESCE(total_runs, 0) + $2,
 			total_wickets = COALESCE(total_wickets, 0) + $3
 		WHERE id = $1
 		RETURNING total_runs, total_wickets
-	`, inningsID, runsDelta, wicketsDelta).Scan(&runs, &wickets)
+	`
+	err := tx.QueryRowx(sql, inningsID, runsDelta, wicketsDelta).Scan(&runs, &wickets)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -189,7 +197,7 @@ func UpsertBattingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, 
 	if isSix {
 		sixes = 1
 	}
-	res, err := tx.Exec(`
+	sql := `
 		UPDATE player_match_stats
 		SET runs_scored = COALESCE(runs_scored, 0) + $3,
 			balls_faced = COALESCE(balls_faced, 0) + $4,
@@ -198,7 +206,8 @@ func UpsertBattingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, 
 			is_out = COALESCE(is_out, FALSE) OR $7,
 			updated_at = NOW()
 		WHERE match_id = $1 AND team_player_id = $2
-	`, matchID, matchPlayerID, runs, balls, fours, sixes, isOut)
+	`
+	res, err := tx.Exec(sql, matchID, matchPlayerID, runs, balls, fours, sixes, isOut)
 	if err != nil {
 		return err
 	}
@@ -209,12 +218,13 @@ func UpsertBattingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, 
 	if rows > 0 {
 		return nil
 	}
-	_, err = tx.Exec(`
+	sql = `
 		INSERT INTO player_match_stats (match_id, player_id, team_player_id, runs_scored, balls_faced, fours, sixes, is_out, updated_at)
 		SELECT $1, tp.player_id, tp.id, $3, $4, $5, $6, $7, NOW()
 		FROM team_players tp
 		WHERE tp.id = $2 AND tp.player_id IS NOT NULL
-	`, matchID, matchPlayerID, runs, balls, fours, sixes, isOut)
+	`
+	_, err = tx.Exec(sql, matchID, matchPlayerID, runs, balls, fours, sixes, isOut)
 	return err
 }
 
@@ -226,7 +236,7 @@ func UpsertBowlingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runsConced
 	if isWicket {
 		wickets = 1
 	}
-	res, err := tx.Exec(`
+	sql := `
 		UPDATE player_match_stats
 		SET runs_conceded = COALESCE(runs_conceded, 0) + $3,
 			wickets_taken = COALESCE(wickets_taken, 0) + $4,
@@ -235,7 +245,8 @@ func UpsertBowlingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runsConced
 				+ MOD(COALESCE(legal_balls_bowled, 0) + $5::INTEGER, 6)::NUMERIC / 10.0,
 			updated_at = NOW()
 		WHERE match_id = $1 AND team_player_id = $2
-	`, matchID, matchPlayerID, runsConceded, wickets, legalDelta)
+	`
+	res, err := tx.Exec(sql, matchID, matchPlayerID, runsConceded, wickets, legalDelta)
 	if err != nil {
 		return err
 	}
@@ -246,12 +257,13 @@ func UpsertBowlingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runsConced
 	if rows > 0 {
 		return nil
 	}
-	_, err = tx.Exec(`
+	sql = `
 		INSERT INTO player_match_stats (match_id, player_id, team_player_id, runs_conceded, wickets_taken, legal_balls_bowled, overs_bowled, updated_at)
 		SELECT $1, tp.player_id, tp.id, $3, $4, $5::INTEGER, FLOOR($5::INTEGER / 6.0) + MOD($5::INTEGER, 6)::NUMERIC / 10.0, NOW()
 		FROM team_players tp
 		WHERE tp.id = $2 AND tp.player_id IS NOT NULL
-	`, matchID, matchPlayerID, runsConceded, wickets, legalDelta)
+	`
+	_, err = tx.Exec(sql, matchID, matchPlayerID, runsConceded, wickets, legalDelta)
 	return err
 }
 
@@ -259,12 +271,12 @@ func UpsertFantasyPointsTx(tx *sqlx.Tx, matchID, matchPlayerID string, points in
 	if bucket != "batting_points" && bucket != "bowling_points" && bucket != "fielding_points" {
 		return nil
 	}
-	query := `UPDATE player_match_stats
+	sql := `UPDATE player_match_stats
 		SET ` + bucket + ` = COALESCE(` + bucket + `, 0) + $3,
 			fantasy_points = COALESCE(fantasy_points, 0) + $3,
 			updated_at = NOW()
 		WHERE match_id = $1 AND team_player_id = $2`
-	res, err := tx.Exec(query, matchID, matchPlayerID, points)
+	res, err := tx.Exec(sql, matchID, matchPlayerID, points)
 	if err != nil {
 		return err
 	}
@@ -275,24 +287,25 @@ func UpsertFantasyPointsTx(tx *sqlx.Tx, matchID, matchPlayerID string, points in
 	if rows > 0 {
 		return nil
 	}
-	_, err = tx.Exec(`INSERT INTO player_match_stats (match_id, player_id, team_player_id, `+bucket+`, fantasy_points, updated_at)
+	sql = `INSERT INTO player_match_stats (match_id, player_id, team_player_id, ` + bucket + `, fantasy_points, updated_at)
 		SELECT $1, tp.player_id, tp.id, $3, $3, NOW()
 		FROM team_players tp
-		WHERE tp.id = $2 AND tp.player_id IS NOT NULL`, matchID, matchPlayerID, points)
+		WHERE tp.id = $2 AND tp.player_id IS NOT NULL`
+	_, err = tx.Exec(sql, matchID, matchPlayerID, points)
 	return err
 }
 
 func InsertPointEventTx(tx *sqlx.Tx, matchID, matchPlayerID, ballEventID, category, ruleName string, points int) error {
-	_, err := tx.Exec(`INSERT INTO point_events (match_id, user_id, ball_event_id, category, rule_name, points)
+	sql := `INSERT INTO point_events (match_id, user_id, ball_event_id, category, rule_name, points)
 		SELECT $1, tp.player_id, $2, $3::point_category, $4, $5
 		FROM team_players tp
-		WHERE tp.id = $6 AND tp.player_id IS NOT NULL`,
-		matchID, ballEventID, category, ruleName, points, matchPlayerID)
+		WHERE tp.id = $6 AND tp.player_id IS NOT NULL`
+	_, err := tx.Exec(sql, matchID, ballEventID, category, ruleName, points, matchPlayerID)
 	return err
 }
 
 func ApplyResultPointsTx(tx *sqlx.Tx, matchID, winnerMatchTeamID string) error {
-	_, err := tx.Exec(`
+	sql := `
 		UPDATE player_match_stats pms
 		SET result_points = COALESCE(result_points, 0) + 5,
 			fantasy_points = COALESCE(fantasy_points, 0) + 5,
@@ -300,11 +313,12 @@ func ApplyResultPointsTx(tx *sqlx.Tx, matchID, winnerMatchTeamID string) error {
 		FROM team_players tp
 		WHERE pms.match_id = $1 AND pms.team_player_id = tp.id
 		  AND tp.team_id = $2 AND tp.is_playing_xi = TRUE AND tp.deleted_at IS NULL
-	`, matchID, winnerMatchTeamID)
+	`
+	_, err := tx.Exec(sql, matchID, winnerMatchTeamID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
+	sql = `
 		UPDATE player_match_stats pms
 		SET result_points = COALESCE(result_points, 0) - 5,
 			fantasy_points = COALESCE(fantasy_points, 0) - 5,
@@ -312,12 +326,13 @@ func ApplyResultPointsTx(tx *sqlx.Tx, matchID, winnerMatchTeamID string) error {
 		FROM team_players tp
 		WHERE pms.match_id = $1 AND pms.team_player_id = tp.id
 		  AND tp.team_id <> $2 AND tp.is_playing_xi = TRUE AND tp.deleted_at IS NULL
-	`, matchID, winnerMatchTeamID)
+	`
+	_, err = tx.Exec(sql, matchID, winnerMatchTeamID)
 	return err
 }
 
 func ApplyNotOutBonus(matchID, inningsID string) error {
-	_, err := database.DB.Exec(`
+	sql := `
 		UPDATE player_match_stats pms
 		SET batting_points = COALESCE(batting_points, 0) + 5,
 			fantasy_points = COALESCE(fantasy_points, 0) + 5,
@@ -330,25 +345,29 @@ func ApplyNotOutBonus(matchID, inningsID string) error {
 			    AND be.striker_id IS NOT NULL AND be.is_deleted = FALSE
 		  )
 		  AND COALESCE(pms.is_out, FALSE) = FALSE
-	`, matchID, inningsID)
+	`
+	_, err := database.DB.Exec(sql, matchID, inningsID)
 	return err
 }
 
 func GetMatchStatus(matchID string) (string, error) {
 	var status string
-	err := database.DB.Get(&status, `SELECT status FROM matches WHERE id = $1`, matchID)
+	sql := `SELECT status FROM matches WHERE id = $1`
+	err := database.DB.Get(&status, sql, matchID)
 	return status, err
 }
 
 func GetFirstInningsRuns(matchID string) (int, error) {
 	var runs int
-	err := database.DB.Get(&runs, `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = 1 LIMIT 1`, matchID)
+	sql := `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = 1 LIMIT 1`
+	err := database.DB.Get(&runs, sql, matchID)
 	return runs, err
 }
 
 func GetInningsRunsByNo(matchID string, inningsNo int) (int, error) {
 	var runs int
-	err := database.DB.Get(&runs, `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`, matchID, inningsNo)
+	sql := `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`
+	err := database.DB.Get(&runs, sql, matchID, inningsNo)
 	return runs, err
 }
 

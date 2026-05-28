@@ -29,6 +29,7 @@ func CreateMatch(c *gin.Context) {
 		"data":    match,
 	})
 }
+
 func GetAllMatches(c *gin.Context) {
 	var query dto.GetMatchesQuery
 	if err := c.ShouldBindQuery(&query); err != nil {

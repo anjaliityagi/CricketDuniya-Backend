@@ -256,8 +256,7 @@ func UpdateFirstPickTeam(matchID string, firstPickTeamID string) error {
 func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
 	var innings []dto.InningsResponse
 
-	query := `
-	SELECT
+	query := `SELECT
 		i.id,
 		i.match_id,
 		i.innings_no,
@@ -377,19 +376,26 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		return nil, err
 	}
 
+	deliveriesByInnings, err := GetMatchDeliveriesByInnings(matchID)
+	if err != nil {
+		return nil, err
+	}
+	scorecard.DeliveriesByInnings = deliveriesByInnings
+
 	var current struct {
 		StrikerID    *string `db:"striker_id"`
 		NonStrikerID *string `db:"non_striker_id"`
 		BowlerID     *string `db:"bowler_id"`
 	}
-	err = database.DB.Get(&current, `
+	sql := `
 		SELECT s.striker_id, s.non_striker_id, s.bowler_id
 		FROM innings i
 		LEFT JOIN innings_state s ON s.innings_id = i.id
 		WHERE i.match_id = $1
 		ORDER BY i.innings_no DESC
 		LIMIT 1
-	`, matchID)
+	`
+	err = database.DB.Get(&current, sql, matchID)
 	if err == nil {
 		scorecard.CurrentStrikerID = current.StrikerID
 		scorecard.CurrentNonStrikerID = current.NonStrikerID
@@ -397,6 +403,75 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 	}
 
 	return scorecard, nil
+}
+
+func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveries, error) {
+	type scorecardDeliveryRow struct {
+		dto.ScorecardDelivery
+		InningsNo   int  `db:"innings_no"`
+		IsSuperOver bool `db:"is_super_over"`
+		SuperOverNo *int `db:"super_over_no"`
+	}
+
+	var rows []scorecardDeliveryRow
+	query := `
+	SELECT
+		i.innings_no,
+		(so.id IS NOT NULL) AS is_super_over,
+		so.super_over_no,
+		be.id,
+		be.innings_id,
+		be.ball_no,
+		COALESCE(be.delivery_no, be.delivery_number, 1) AS delivery_no,
+		COALESCE(be.ball_type, 'normal') AS ball_type,
+		COALESCE(be.runs_scored, be.total_runs, 0) AS runs_scored,
+		COALESCE(be.runs_off_bat, 0) AS runs_off_bat,
+		COALESCE(be.extras, 0) AS extras,
+		COALESCE(be.total_runs, 0) AS total_runs,
+		COALESCE(be.is_dot_ball, FALSE) AS is_dot_ball,
+		COALESCE(be.is_boundary_four, FALSE) AS is_boundary_four,
+		COALESCE(be.is_boundary_six, FALSE) AS is_boundary_six,
+		COALESCE(be.is_wicket, FALSE) AS is_wicket,
+		be.striker_id,
+		be.non_striker_id,
+		be.bowler_id,
+		be.dismissal_type,
+		be.dismissed_player_id,
+		be.fielder_id,
+		COALESCE(be.wides, 0) AS wides,
+		COALESCE(be.no_balls, 0) AS no_balls,
+		COALESCE(be.byes, 0) AS byes,
+		COALESCE(be.leg_byes, 0) AS leg_byes
+	FROM innings i
+	JOIN ball_events be ON be.innings_id = i.id
+	LEFT JOIN super_overs so ON so.innings_id = i.id
+	WHERE i.match_id = $1
+	  AND be.is_deleted = FALSE
+	ORDER BY i.innings_no ASC, be.ball_no ASC, COALESCE(be.delivery_no, be.delivery_number, 1) ASC, be.created_at ASC
+	`
+	if err := database.DB.Select(&rows, query, matchID); err != nil {
+		return nil, err
+	}
+
+	grouped := make([]dto.ScorecardInningsDeliveries, 0)
+	indexByInningsID := make(map[string]int)
+	for _, row := range rows {
+		idx, ok := indexByInningsID[row.InningsID]
+		if !ok {
+			grouped = append(grouped, dto.ScorecardInningsDeliveries{
+				InningsID:   row.InningsID,
+				InningsNo:   row.InningsNo,
+				IsSuperOver: row.IsSuperOver,
+				SuperOverNo: row.SuperOverNo,
+				Deliveries:  []dto.ScorecardDelivery{},
+			})
+			idx = len(grouped) - 1
+			indexByInningsID[row.InningsID] = idx
+		}
+		grouped[idx].Deliveries = append(grouped[idx].Deliveries, row.ScorecardDelivery)
+	}
+
+	return grouped, nil
 }
 
 func ResolveMatchTeamID(matchID string, teamOrMatchTeamID string) (string, error) {
@@ -428,27 +503,30 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec(`
+	sql := `
 		UPDATE matches
 		SET status = 'live', started_at = COALESCE(started_at, NOW())
 		WHERE id = $1
-	`, matchID)
+	`
+	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return nil, err
 	}
 
 	var inningsCount int
-	if err := tx.Get(&inningsCount, `SELECT COUNT(1) FROM innings WHERE match_id = $1`, matchID); err != nil {
+	sql = `SELECT COUNT(1) FROM innings WHERE match_id = $1`
+	if err := tx.Get(&inningsCount, sql, matchID); err != nil {
 		return nil, err
 	}
 
 	if inningsCount == 0 {
 		var teamA, teamB string
-		if err := tx.QueryRowx(`SELECT team_a_id, team_b_id FROM matches WHERE id = $1`, matchID).Scan(&teamA, &teamB); err != nil {
+		sql = `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`
+		if err := tx.QueryRowx(sql, matchID).Scan(&teamA, &teamB); err != nil {
 			return nil, err
 		}
 
-		if _, err := tx.Exec(`
+		sql = `
 			INSERT INTO innings (
 				match_id,
 				batting_team_id,
@@ -456,7 +534,8 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 				innings_no,
 				started_at
 			) VALUES ($1, $2, $3, 1, NOW())
-		`, matchID, teamA, teamB); err != nil {
+		`
+		if _, err := tx.Exec(sql, matchID, teamA, teamB); err != nil {
 			return nil, err
 		}
 	}
@@ -508,7 +587,7 @@ func UpdateMatchLineup(matchID string, players []dto.UpdateLineupPlayer) error {
 	defer tx.Rollback()
 
 	for _, p := range players {
-		_, err := tx.Exec(`
+		sql := `
 			UPDATE team_players tp
 			SET
 				is_playing_xi = $1,
@@ -522,7 +601,8 @@ func UpdateMatchLineup(matchID string, players []dto.UpdateLineupPlayer) error {
 				UNION
 				SELECT team_b_id FROM matches WHERE id = $6
 			  )
-		`, p.IsPlayingXI, p.IsCaptain, p.IsUmpire, p.BattingOrder, p.MatchTeamPlayerID, matchID)
+		`
+		_, err := tx.Exec(sql, p.IsPlayingXI, p.IsCaptain, p.IsUmpire, p.BattingOrder, p.MatchTeamPlayerID, matchID)
 		if err != nil {
 			return err
 		}
@@ -533,11 +613,12 @@ func UpdateMatchLineup(matchID string, players []dto.UpdateLineupPlayer) error {
 
 func GetMatchInningsIDs(matchID string) ([]string, error) {
 	var ids []string
-	err := database.DB.Select(&ids, `
+	sql := `
 		SELECT id
 		FROM innings
 		WHERE match_id = $1
-		ORDER BY innings_no ASC`, matchID)
+		ORDER BY innings_no ASC`
+	err := database.DB.Select(&ids, sql, matchID)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +635,7 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 	var pomUserID *string
 	var worstUserID *string
 
-	err = tx.QueryRowx(`
+	sql := `
 		SELECT tp.player_id
 		FROM player_match_stats pms
 		JOIN team_players tp ON tp.id = pms.team_player_id
@@ -562,12 +643,13 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 		  AND tp.player_id IS NOT NULL
 		ORDER BY pms.fantasy_points DESC, pms.updated_at DESC
 		LIMIT 1
-	`, matchID).Scan(&pomUserID)
+	`
+	err = tx.QueryRowx(sql, matchID).Scan(&pomUserID)
 	if err != nil {
 		pomUserID = nil
 	}
 
-	err = tx.QueryRowx(`
+	sql = `
 		SELECT tp.player_id
 		FROM player_match_stats pms
 		JOIN team_players tp ON tp.id = pms.team_player_id
@@ -575,12 +657,13 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 		  AND tp.player_id IS NOT NULL
 		ORDER BY pms.fantasy_points ASC, pms.updated_at DESC
 		LIMIT 1
-	`, matchID).Scan(&worstUserID)
+	`
+	err = tx.QueryRowx(sql, matchID).Scan(&worstUserID)
 	if err != nil {
 		worstUserID = nil
 	}
 
-	_, err = tx.Exec(`
+	sql = `
 		UPDATE matches
 		SET
 			winner_match_team_id = $2,
@@ -589,7 +672,8 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 			player_of_match_user_id = $3,
 			worst_player_user_id = $4
 		WHERE id = $1
-	`, matchID, winnerMatchTeamID, pomUserID, worstUserID)
+	`
+	_, err = tx.Exec(sql, matchID, winnerMatchTeamID, pomUserID, worstUserID)
 	if err != nil {
 		return err
 	}
