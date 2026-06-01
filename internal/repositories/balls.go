@@ -32,13 +32,14 @@ func SaveBall(req dto.BallRequest) (string, error) {
 		no_balls,
 		byes,
 		leg_byes,
+		is_free_hit,
 		created_at
 	)
 	VALUES (
 		gen_random_uuid(),
 		$1,$2,$3,$4,$5,
 		$6,$7,$8,$9,$10,$11,$12,
-		$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,
+		$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
 		NOW()
 	)
 	RETURNING id
@@ -69,6 +70,7 @@ func SaveBall(req dto.BallRequest) (string, error) {
 		req.NoBalls,
 		req.Byes,
 		req.LegByes,
+		req.IsFreeHit,
 	).Scan(&ballEventID)
 
 	return ballEventID, err

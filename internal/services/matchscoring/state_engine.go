@@ -18,6 +18,7 @@ type InningsState struct {
 	StrikerID    *string `db:"striker_id"`
 	NonStrikerID *string `db:"non_striker_id"`
 	BowlerID     *string `db:"bowler_id"`
+	IsFreeHit    bool    `db:"is_free_hit"`
 	TotalRuns    int     `db:"total_runs"`
 	TotalWickets int     `db:"total_wickets"`
 	LegalBalls   int     `db:"legal_balls"`
@@ -75,6 +76,15 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		}
 	}
 	internalReq, legalBall := mapBallRequest(req, activeStriker, activeNonStriker, activeBowler, state)
+	if internalReq.BallType == "no_ball" && internalReq.IsWicket && !allowedFreeHitDismissal(internalReq.DismissalType) {
+		internalReq.IsWicket = false
+		internalReq.DismissalType = ""
+		internalReq.DismissedPlayerID = nil
+		internalReq.FielderID = nil
+	}
+	if state.IsFreeHit && internalReq.BallType != "no_ball" && internalReq.IsWicket && !allowedFreeHitDismissal(internalReq.DismissalType) {
+		return nil, errors.New("dismissal not allowed on free hit")
+	}
 
 	matchUpdate, err := e.Process(internalReq)
 	if err != nil {
@@ -100,10 +110,10 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	nextBowler := activeBowler
 	needsNextBatter := false
 	noBatterLeft := false
-	needsReplacement := req.IsWicket || strings.EqualFold(req.DismissalType, "retired_hurt")
+	needsReplacement := internalReq.IsWicket || strings.EqualFold(internalReq.DismissalType, "retired_hurt") || strings.EqualFold(internalReq.DismissalType, "retired_out")
 
-	if needsReplacement && req.DismissedPlayerID != nil {
-		dismissedID := req.DismissedPlayerID.String()
+	if needsReplacement && internalReq.DismissedPlayerID != nil {
+		dismissedID := internalReq.DismissedPlayerID.String()
 		if req.NextBatterID == nil && dismissedID == nextStriker && dismissedID == nextNonStriker {
 			noBatterLeft = true
 		}
@@ -135,6 +145,7 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	nextOver := state.CurrentOver
 	nextBall := state.CurrentBall
 	nextLegalBalls := state.LegalBalls
+	nextFreeHit := false
 	if legalBall {
 		nextLegalBalls++
 		nextBall++
@@ -144,6 +155,9 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 			nextBall = 0
 			nextStriker, nextNonStriker = nextNonStriker, nextStriker
 		}
+	}
+	if internalReq.BallType == "no_ball" {
+		nextFreeHit = true
 	}
 
 	inningsCompleted := false
@@ -163,7 +177,7 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		status = "completed"
 	}
 
-	if err := repositories.UpdateInningsStateAfterBallTx(tx, req.InningsID, nextStriker, nextNonStriker, nextBowler, matchUpdate.InningsRuns, matchUpdate.InningsWickets, nextLegalBalls, nextOver, nextBall, status); err != nil {
+	if err := repositories.UpdateInningsStateAfterBallTx(tx, req.InningsID, nextStriker, nextNonStriker, nextBowler, matchUpdate.InningsRuns, matchUpdate.InningsWickets, nextLegalBalls, nextOver, nextBall, nextFreeHit, status); err != nil {
 		return nil, err
 	}
 
@@ -192,6 +206,7 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		StrikerID:        strPtr(nextStriker),
 		NonStrikerID:     strPtr(nextNonStriker),
 		BowlerID:         strPtr(nextBowler),
+		IsFreeHit:        nextFreeHit,
 		TotalRuns:        matchUpdate.InningsRuns,
 		TotalWickets:     matchUpdate.InningsWickets,
 		LegalBalls:       nextLegalBalls,
@@ -226,7 +241,7 @@ func getInningsMeta(tx *sqlx.Tx, inningsID uuid.UUID) (*inningsMeta, error) {
 
 func ensureNextInningsTx(tx *sqlx.Tx, meta *inningsMeta, firstInningsRuns int) error {
 	if meta.InningsNo != 1 {
-		// Super over: after first innings of each super over, create the chase innings.
+
 		if meta.IsSuperOver && meta.InningsNo%2 == 1 {
 			nextInningsNo := meta.InningsNo + 1
 			count, err := repositories.CountInningsByNoTx(tx, meta.MatchID, nextInningsNo)
@@ -340,6 +355,7 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 	if totalRuns == 0 {
 		totalRuns = req.RunsOffBat + req.Extras
 	}
+	extras := req.Extras
 	wides := 0
 	noBalls := 0
 	byes := 0
@@ -347,10 +363,28 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 	legal := true
 	switch bt {
 	case "wide":
-		wides = req.Extras
+		// A wide must always cost at least one run; any extra runs on the ball
+		// are still carried as wides.
+		if extras < 1 {
+			extras = 1
+		}
+		wides = extras
+		if wides < 1 {
+			wides = 1
+		}
+		if totalRuns < wides {
+			totalRuns = wides
+		}
 		legal = false
 	case "no_ball":
-		noBalls = req.Extras
+		if extras < 1 {
+			extras = 1
+		}
+		noBalls = extras
+		totalRuns = req.RunsOffBat + extras
+		if totalRuns < noBalls {
+			totalRuns = noBalls
+		}
 		legal = false
 	case "bye":
 		byes = req.Extras
@@ -375,8 +409,9 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 		BallType:          bt,
 		RunsScored:        totalRuns,
 		RunsOffBat:        req.RunsOffBat,
-		Extras:            req.Extras,
+		Extras:            extras,
 		TotalRuns:         totalRuns,
+		IsFreeHit:         state.IsFreeHit,
 		IsDotBall:         totalRuns == 0,
 		IsBoundaryFour:    req.RunsOffBat == 4,
 		IsBoundarySix:     req.RunsOffBat == 6,
@@ -391,6 +426,15 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 	}, legal
 }
 
+func allowedFreeHitDismissal(dismissalType string) bool {
+	switch strings.ToLower(strings.TrimSpace(dismissalType)) {
+	case "run_out", "obstructing_field", "hit_ball_twice", "retired_out", "retired_hurt":
+		return true
+	default:
+		return false
+	}
+}
+
 func saveBallTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 	return repositories.SaveBallEventTx(tx, req)
 }
@@ -398,7 +442,7 @@ func saveBallTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 func persistFantasyTx(tx *sqlx.Tx, req dto.BallRequest, ballEventID string, battingPoints, bowlingPoints, fieldingPoints int) error {
 
 	if req.StrikerID.String() != "" && battingPoints != 0 {
-		
+
 		if err := repositories.UpsertFantasyPointsTx(tx, req.MatchID.String(), req.StrikerID.String(), battingPoints, "batting_points"); err != nil {
 			return err
 		}
@@ -476,7 +520,7 @@ func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRe
 	}
 
 	if stateExists {
-		err = repositories.UpdateInningsStateAfterBallTx(tx, inningsID, finalStrikerID, finalNonStrikerID, finalBowlerID, state.TotalRuns, state.TotalWickets, state.LegalBalls, state.CurrentOver, state.CurrentBall, state.Status)
+		err = repositories.UpdateInningsStateAfterBallTx(tx, inningsID, finalStrikerID, finalNonStrikerID, finalBowlerID, state.TotalRuns, state.TotalWickets, state.LegalBalls, state.CurrentOver, state.CurrentBall, state.IsFreeHit, state.Status)
 	} else {
 		insertReq := dto.BallInputRequest{InningsID: inningsID, StrikerID: ptrUUID(finalStrikerID), NonStrikerID: ptrUUID(finalNonStrikerID), BowlerID: ptrUUID(finalBowlerID)}
 		err = repositories.InsertInitialInningsStateTx(tx, insertReq)
@@ -498,6 +542,7 @@ func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRe
 		StrikerID:    s.StrikerID,
 		NonStrikerID: s.NonStrikerID,
 		BowlerID:     s.BowlerID,
+		IsFreeHit:    s.IsFreeHit,
 		TotalRuns:    s.TotalRuns,
 		TotalWickets: s.TotalWickets,
 		LegalBalls:   s.LegalBalls,
@@ -553,7 +598,7 @@ func (e *Engine) UndoLastBall(inningsID uuid.UUID) (*dto.InningsStateResponse, e
 	over := rebuilt.Legal / 6
 	ball := rebuilt.Legal % 6
 
-	if err := repositories.UpdateInningsStateAfterUndoTx(tx, inningsID, deletedBall.StrikerID, deletedBall.NonStriker, deletedBall.BowlerID, rebuilt.Runs, rebuilt.Wickets, rebuilt.Legal, over, ball); err != nil {
+	if err := repositories.UpdateInningsStateAfterUndoTx(tx, inningsID, deletedBall.StrikerID, deletedBall.NonStriker, deletedBall.BowlerID, rebuilt.Runs, rebuilt.Wickets, rebuilt.Legal, over, ball, deletedBall.IsFreeHit); err != nil {
 		return nil, err
 	}
 	if err := repositories.ReopenInningsTx(tx, inningsID, rebuilt.Runs, rebuilt.Wickets); err != nil {
@@ -576,6 +621,7 @@ func (e *Engine) UndoLastBall(inningsID uuid.UUID) (*dto.InningsStateResponse, e
 		StrikerID:    deletedBall.StrikerID,
 		NonStrikerID: deletedBall.NonStriker,
 		BowlerID:     deletedBall.BowlerID,
+		IsFreeHit:    deletedBall.IsFreeHit,
 		TotalRuns:    rebuilt.Runs,
 		TotalWickets: rebuilt.Wickets,
 		LegalBalls:   rebuilt.Legal,
@@ -671,7 +717,7 @@ func autoCompleteMatchIfNeeded(matchID string, meta *inningsMeta, secondInningsR
 }
 
 func determineWinnerMatchTeamID(matchID string, meta *inningsMeta, secondInningsRuns int) (string, error) {
-	// Regular match innings 2 tie triggers super over flow.
+
 	if meta.InningsNo == 2 {
 		firstInningsRuns, err := repositories.GetFirstInningsRuns(matchID)
 		if err != nil {
@@ -683,14 +729,13 @@ func determineWinnerMatchTeamID(matchID string, meta *inningsMeta, secondInnings
 		if secondInningsRuns < firstInningsRuns {
 			return meta.BowlingTeamID, nil
 		}
-		// Tie: create super over 1 (two innings: 3 and 4), do not finalize match yet.
+
 		if err := createNextSuperOver(meta.MatchID, 1); err != nil {
 			return "", err
 		}
 		return "", nil
 	}
 
-	// Super over completion check: only decide after the second innings of that super over.
 	if meta.IsSuperOver {
 		if meta.InningsNo%2 == 1 {
 			return "", nil

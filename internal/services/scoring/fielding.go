@@ -13,5 +13,9 @@ func fielding(req dto.BallRequest) int {
 		points += 5
 	}
 
+	if req.FielderID != nil && req.IsWicket && req.DismissalType == "obstructing_field" {
+		points += 5
+	}
+
 	return points
 }
