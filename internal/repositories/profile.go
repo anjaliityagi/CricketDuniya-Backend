@@ -103,13 +103,13 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 
 func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
 	query := `
-	SELECT
-		COALESCE(
+	SELECT COALESCE(
 			ROUND(
 				SUM(runs_scored)::NUMERIC /
 				NULLIF(COUNT(CASE WHEN is_out THEN 1 END), 0),
 			2),
-		0)::FLOAT AS average,
+			ROUND(COALESCE(SUM(runs_scored), 0)::NUMERIC, 2),
+		)::FLOAT AS average,
 		COALESCE(
 			ROUND(
 				SUM(runs_scored)::NUMERIC * 100 /
