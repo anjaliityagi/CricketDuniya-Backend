@@ -14,11 +14,10 @@ type BallRequest struct {
 	DeliveryNo int    `json:"delivery_no"`
 	BallType   string `json:"ball_type"` // normal, wide, no_ball, bye, leg_bye, dead_ball, wicket, retired_hurt, dead_ball, wicket, retired_hurt
 
-	RunsScored int  `json:"runs_scored"`
-	RunsOffBat int  `json:"runs_off_bat"`
-	Extras     int  `json:"extras"`
-	TotalRuns  int  `json:"total_runs"`
-	IsFreeHit  bool `json:"is_free_hit"`
+	RunsScored int `json:"runs_scored"`
+	RunsOffBat int `json:"runs_off_bat"`
+	Extras     int `json:"extras"`
+	TotalRuns  int `json:"total_runs"`
 
 	IsDotBall bool `json:"is_dot_ball"`
 
@@ -62,7 +61,6 @@ type InningsStateResponse struct {
 	StrikerID         *string `json:"striker_id"`
 	NonStrikerID      *string `json:"non_striker_id"`
 	BowlerID          *string `json:"bowler_id"`
-	IsFreeHit         bool    `json:"is_free_hit"`
 	TotalRuns         int     `json:"total_runs"`
 	TotalWickets      int     `json:"total_wickets"`
 	LegalBalls        int     `json:"legal_balls"`

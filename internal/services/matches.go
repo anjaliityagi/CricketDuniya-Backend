@@ -10,42 +10,42 @@ import (
 	"time"
 )
 
-//func CreateMatch(req dto.CreateMatchRequest, hostUserID string) (*models.Match, error) {
-//
-//	var parsedDate *time.Time
-//
-//	if req.MatchDate != "" {
-//
-//		t, err := time.Parse(time.RFC3339, req.MatchDate)
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		parsedDate = &t
-//	}
-//
-//	match := &models.Match{
-//		TeamAID:         &req.TeamAID,
-//		TeamBID:         &req.TeamBID,
-//		HostUserID:      hostUserID,
-//		Location:        &req.Location,
-//		MatchDate:       parsedDate,
-//		OversPerInnings: req.OversPerInnings,
-//		Status:          "scheduled",
-//	}
-//
-//	err := repositories.CreateMatch(match)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	_, _, err = repositories.CreateMatchSnapshots(match.ID, req.TeamAID, req.TeamBID)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return match, nil
-//}
+func CreateMatch(req dto.CreateMatchRequest, hostUserID string) (*models.Match, error) {
+
+	var parsedDate *time.Time
+
+	if req.MatchDate != "" {
+
+		t, err := time.Parse(time.RFC3339, req.MatchDate)
+		if err != nil {
+			return nil, err
+		}
+
+		parsedDate = &t
+	}
+
+	match := &models.Match{
+		TeamAID:         &req.TeamAID,
+		TeamBID:         &req.TeamBID,
+		HostUserID:      hostUserID,
+		Location:        &req.Location,
+		MatchDate:       parsedDate,
+		OversPerInnings: req.OversPerInnings,
+		Status:          "scheduled",
+	}
+
+	err := repositories.CreateMatch(match)
+	if err != nil {
+		return nil, err
+	}
+
+	_, _, err = repositories.CreateMatchSnapshots(match.ID, req.TeamAID, req.TeamBID)
+	if err != nil {
+		return nil, err
+	}
+
+	return match, nil
+}
 
 func CreateMatchWithTeams(req dto.CreateMatchWithTeamsRequest, hostUserID string) (*models.Team, *models.Team, *models.Match, error) {
 	tx, err := database.DB.Beginx()

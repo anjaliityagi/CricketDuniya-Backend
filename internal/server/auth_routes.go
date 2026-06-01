@@ -9,7 +9,6 @@ import (
 
 func registerAuthRoutes(rg *gin.RouterGroup) {
 	rg.GET("/users/:id/profile", handlers.GetPublicUserProfile)
-
 	rg.GET("/players", handlers.GetPlayersDirectory)
 
 	auth := rg.Group("/auth")

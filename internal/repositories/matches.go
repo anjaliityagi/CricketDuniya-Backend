@@ -17,37 +17,36 @@ type MatchTeamSnapshot struct {
 	DisplayName  string  `db:"display_name"`
 }
 
-//
-//func CreateMatch(match *models.Match) error {
-//
-//	query := `
-//	INSERT INTO matches (
-//	           team_a_id,
-//	                     team_b_id,
-//		host_user_id,
-//		location,
-//		match_date,
-//		overs_per_innings,
-//		status
-//	)
-//	VALUES ($1, $2, $3, $4, $5, $6, $7)
-//	RETURNING id, created_at
-//	`
-//
-//	return database.DB.QueryRowx(
-//		query,
-//		match.TeamAID,
-//		match.TeamBID,
-//		match.HostUserID,
-//		match.Location,
-//		match.MatchDate,
-//		match.OversPerInnings,
-//		match.Status,
-//	).Scan(
-//		&match.ID,
-//		&match.CreatedAt,
-//	)
-//}
+func CreateMatch(match *models.Match) error {
+
+	query := `
+	INSERT INTO matches (
+	           team_a_id,
+	                     team_b_id,
+		host_user_id,
+		location,
+		match_date,
+		overs_per_innings,
+		status
+	)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
+	RETURNING id, created_at
+	`
+
+	return database.DB.QueryRowx(
+		query,
+		match.TeamAID,
+		match.TeamBID,
+		match.HostUserID,
+		match.Location,
+		match.MatchDate,
+		match.OversPerInnings,
+		match.Status,
+	).Scan(
+		&match.ID,
+		&match.CreatedAt,
+	)
+}
 
 func CreateMatchTx(tx *sqlx.Tx, match *models.Match) error {
 	query := `
@@ -265,7 +264,6 @@ func GetMatchInnings(matchID string) ([]dto.InningsResponse, error) {
 		so.super_over_no,
 		i.batting_team_id,
 		i.bowling_team_id,
-		COALESCE(s.is_free_hit, FALSE) AS is_free_hit,
 		COALESCE(i.total_runs, 0) AS total_runs,
 		COALESCE(i.total_wickets, 0) AS total_wickets,
 		COALESCE(s.legal_balls, legal_totals.legal_balls, 0) AS legal_balls,
@@ -294,7 +292,6 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 	scorecard := &dto.MatchScorecardResponse{}
 
 	innings, err := GetMatchInnings(matchID)
-
 	if err != nil {
 		return nil, err
 	}
@@ -363,9 +360,8 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		ball_no,
 		COALESCE(delivery_no, delivery_number, 1) AS delivery_no,
 		COALESCE(ball_type, 'normal') AS ball_type,
-		COALESCE(is_free_hit, FALSE) AS is_free_hit,
 		COALESCE(total_runs, 0) AS total_runs,
-		COALESCE(is_wicket, FALSE) AS is_wicket,
+-- 		COALESCE(is_wicket, FALSE) AS is_wicket,
 		striker_id,
 		non_striker_id,
 		bowler_id,
@@ -410,7 +406,6 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 }
 
 func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveries, error) {
-
 	type scorecardDeliveryRow struct {
 		dto.ScorecardDelivery
 		InningsNo   int  `db:"innings_no"`
@@ -419,8 +414,8 @@ func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveri
 	}
 
 	var rows []scorecardDeliveryRow
-
-	query := `SELECT
+	query := `
+	SELECT
 		i.innings_no,
 		(so.id IS NOT NULL) AS is_super_over,
 		so.super_over_no,
@@ -437,7 +432,6 @@ func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveri
 		COALESCE(be.is_boundary_four, FALSE) AS is_boundary_four,
 		COALESCE(be.is_boundary_six, FALSE) AS is_boundary_six,
 		COALESCE(be.is_wicket, FALSE) AS is_wicket,
-		COALESCE(be.is_free_hit, FALSE) AS is_free_hit,
 		be.striker_id,
 		be.non_striker_id,
 		be.bowler_id,

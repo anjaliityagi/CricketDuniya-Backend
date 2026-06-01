@@ -70,7 +70,6 @@ type InningsResponse struct {
 	SuperOverNo        *int    `db:"super_over_no" json:"super_over_no,omitempty"`
 	BattingMatchTeamID *string `db:"batting_team_id" json:"batting_match_team_id"`
 	BowlingMatchTeamID *string `db:"bowling_team_id" json:"bowling_match_team_id"`
-	IsFreeHit          bool    `db:"is_free_hit" json:"is_free_hit"`
 	TotalRuns          int     `db:"total_runs" json:"total_runs"`
 	TotalWickets       int     `db:"total_wickets" json:"total_wickets"`
 	LegalBalls         int     `db:"legal_balls" json:"legal_balls"`
@@ -100,7 +99,6 @@ type RecentBall struct {
 	BallNo        int     `db:"ball_no" json:"ball_no"`
 	DeliveryNo    int     `db:"delivery_no" json:"delivery_no"`
 	BallType      string  `db:"ball_type" json:"ball_type"`
-	IsFreeHit     bool    `db:"is_free_hit" json:"is_free_hit"`
 	TotalRuns     int     `db:"total_runs" json:"total_runs"`
 	IsWicket      bool    `db:"is_wicket" json:"is_wicket"`
 	StrikerID     *string `db:"striker_id" json:"striker_id"`
@@ -115,7 +113,6 @@ type ScorecardDelivery struct {
 	BallNo            int     `db:"ball_no" json:"ball_no"`
 	DeliveryNo        int     `db:"delivery_no" json:"delivery_no"`
 	BallType          string  `db:"ball_type" json:"ball_type"`
-	IsFreeHit         bool    `db:"is_free_hit" json:"is_free_hit"`
 	RunsScored        int     `db:"runs_scored" json:"runs_scored"`
 	RunsOffBat        int     `db:"runs_off_bat" json:"runs_off_bat"`
 	Extras            int     `db:"extras" json:"extras"`
