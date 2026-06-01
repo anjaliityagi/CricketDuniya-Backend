@@ -81,13 +81,14 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 		COUNT(*) FILTER (WHERE winner_match_team_id = team_id)::INT AS won,
 		COUNT(*) FILTER (WHERE winner_match_team_id IS NOT NULL AND winner_match_team_id <> team_id)::INT AS lost,
 		COUNT(*) FILTER (WHERE player_of_match_user_id = $1)::INT AS mvps,
-		COALESCE(
-			ROUND(
-				COUNT(*) FILTER (WHERE winner_match_team_id = team_id)::NUMERIC * 100 /
-				NULLIF(COUNT(*) FILTER (WHERE winner_match_team_id IS NOT NULL), 0),
-			2
-			),
-		0)::FLOAT AS win_percentage,
+	COALESCE(
+    ROUND(
+        COUNT(*) FILTER (WHERE winner_match_team_id = team_id)::NUMERIC * 100 /
+        NULLIF(COUNT(*) FILTER (WHERE winner_match_team_id IS NOT NULL), 0),
+        2
+    ),
+    0
+)::FLOAT AS win_percentage,
 		COALESCE(SUM(fantasy_points), 0)::INT AS points
 	FROM user_base
 	`
@@ -104,18 +105,21 @@ func GetUserProfileSummary(userID string) (*dto.UserProfileSummary, error) {
 func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
 	query := `
 	SELECT COALESCE(
-			ROUND(
-				SUM(runs_scored)::NUMERIC /
-				NULLIF(COUNT(CASE WHEN is_out THEN 1 END), 0),
-			2),
-			ROUND(COALESCE(SUM(runs_scored), 0)::NUMERIC, 2),
-		)::FLOAT AS average,
+    ROUND(
+        SUM(runs_scored)::NUMERIC /
+        NULLIF(COUNT(CASE WHEN is_out THEN 1 END), 0),
+        2
+    ),
+    ROUND(COALESCE(SUM(runs_scored), 0)::NUMERIC, 2)
+)::FLOAT AS average,
 		COALESCE(
-			ROUND(
-				SUM(runs_scored)::NUMERIC * 100 /
-				NULLIF(SUM(balls_faced), 0),
-			2),
-		0)::FLOAT AS strike_rate,
+    ROUND(
+        SUM(runs_scored)::NUMERIC * 100 /
+        NULLIF(SUM(balls_faced), 0),
+        2
+    ),
+    0
+)::FLOAT AS strike_rate,
 		COALESCE(MAX(runs_scored),0)::INT AS high_score,
 		COALESCE(SUM(runs_scored),0)::INT AS runs,
 		COUNT(*)::INT AS innings,
@@ -153,11 +157,13 @@ func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
 		COALESCE(SUM(runs_conceded),0)::INT AS runs_conceded,
 		COALESCE(SUM(maidens),0)::INT AS maidens,
 		COALESCE(
-			ROUND(
-				SUM(runs_conceded)::NUMERIC * 6 /
-				NULLIF(SUM(legal_balls_bowled),0),
-			2),
-		0)::FLOAT AS economy
+    ROUND(
+        SUM(runs_conceded)::NUMERIC * 6 /
+        NULLIF(SUM(legal_balls_bowled), 0),
+        2
+    ),
+    0
+)::FLOAT AS economy
 	FROM player_match_stats pms
 	LEFT JOIN team_players tp ON tp.id = pms.team_player_id
 	WHERE tp.player_id = $1
