@@ -17,38 +17,6 @@ type MatchTeamSnapshot struct {
 	DisplayName  string  `db:"display_name"`
 }
 
-//
-//func CreateMatch(match *models.Match) error {
-//
-//	query := `
-//	INSERT INTO matches (
-//	           team_a_id,
-//	                     team_b_id,
-//		host_user_id,
-//		location,
-//		match_date,
-//		overs_per_innings,
-//		status
-//	)
-//	VALUES ($1, $2, $3, $4, $5, $6, $7)
-//	RETURNING id, created_at
-//	`
-//
-//	return database.DB.QueryRowx(
-//		query,
-//		match.TeamAID,
-//		match.TeamBID,
-//		match.HostUserID,
-//		match.Location,
-//		match.MatchDate,
-//		match.OversPerInnings,
-//		match.Status,
-//	).Scan(
-//		&match.ID,
-//		&match.CreatedAt,
-//	)
-//}
-
 func CreateMatchTx(tx *sqlx.Tx, match *models.Match) error {
 	query := `
 	INSERT INTO matches (
@@ -509,17 +477,17 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 	}
 	defer tx.Rollback()
 
-	sql := `
-		UPDATE matches
-		SET status = 'live', started_at = COALESCE(started_at, NOW())
-		WHERE id = $1
-	`
+	sql := `UPDATE matches
+		        SET status = 'live', started_at = COALESCE(started_at, NOW())
+		       WHERE id = $1`
+
 	_, err = tx.Exec(sql, matchID)
 	if err != nil {
 		return nil, err
 	}
 
 	var inningsCount int
+
 	sql = `SELECT COUNT(1) FROM innings WHERE match_id = $1`
 	if err := tx.Get(&inningsCount, sql, matchID); err != nil {
 		return nil, err
@@ -527,7 +495,9 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 
 	if inningsCount == 0 {
 		var teamA, teamB string
+
 		sql = `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`
+
 		if err := tx.QueryRowx(sql, matchID).Scan(&teamA, &teamB); err != nil {
 			return nil, err
 		}
@@ -539,8 +509,8 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 				bowling_team_id,
 				innings_no,
 				started_at
-			) VALUES ($1, $2, $3, 1, NOW())
-		`
+		 	) VALUES ($1, $2, $3, 1, NOW())
+		   `
 		if _, err := tx.Exec(sql, matchID, teamA, teamB); err != nil {
 			return nil, err
 		}
@@ -557,7 +527,7 @@ func GetMatchSquad(matchID string) ([]dto.MatchSquadPlayer, error) {
 	var players []dto.MatchSquadPlayer
 
 	query := `
-	SELECT
+	  SELECT
 		tp.id AS team_player_id,
 		tp.team_id,
 		tp.player_id AS user_id,
@@ -567,21 +537,19 @@ func GetMatchSquad(matchID string) ([]dto.MatchSquadPlayer, error) {
 		COALESCE(tp.is_captain, FALSE) AS is_captain,
 		COALESCE(tp.is_umpire, FALSE) AS is_umpire,
 		tp.batting_order
-	FROM team_players tp
-	LEFT JOIN users u ON u.id = tp.player_id
-	WHERE tp.team_id IN (
+	 FROM team_players tp
+	 LEFT JOIN users u ON u.id = tp.player_id
+	 WHERE tp.team_id IN (
 		SELECT team_a_id FROM matches WHERE id = $1
 		UNION
 		SELECT team_b_id FROM matches WHERE id = $1
-	)
+	  )
 	  AND tp.deleted_at IS NULL
-	ORDER BY tp.team_id ASC, tp.batting_order ASC NULLS LAST, tp.created_at ASC
+	  ORDER BY tp.team_id ASC, tp.batting_order ASC NULLS LAST, tp.created_at ASC
 	`
-
 	if err := database.DB.Select(&players, query, matchID); err != nil {
 		return nil, err
 	}
-
 	return players, nil
 }
 

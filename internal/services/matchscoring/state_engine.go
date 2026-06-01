@@ -363,8 +363,6 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 	legal := true
 	switch bt {
 	case "wide":
-		// A wide must always cost at least one run; any extra runs on the ball
-		// are still carried as wides.
 		if extras < 1 {
 			extras = 1
 		}
@@ -755,7 +753,6 @@ func determineWinnerMatchTeamID(matchID string, meta *inningsMeta, secondInnings
 		if secondInningsRuns < firstSORuns {
 			return meta.BowlingTeamID, nil
 		}
-		// Tied super over: keep creating next super over until winner is found.
 		if err := createNextSuperOver(meta.MatchID, superOverNo+1); err != nil {
 			return "", err
 		}
@@ -794,7 +791,6 @@ func createNextSuperOver(matchID string, superOverNo int) error {
 		return err
 	}
 
-	// super over innings numbers: 3/4 for SO1, 5/6 for SO2
 	firstInningsNo := 3 + (superOverNo-1)*2
 
 	count, err := repositories.CountInningsByNoTx(tx, matchID, firstInningsNo)

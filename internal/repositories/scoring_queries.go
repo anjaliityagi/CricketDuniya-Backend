@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"CricketDuniya-Backend/internal/database"
-	"database/sql"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -237,15 +236,16 @@ func UpsertBowlingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runsConced
 		wickets = 1
 	}
 	sql := `
-		UPDATE player_match_stats
-		SET runs_conceded = COALESCE(runs_conceded, 0) + $3,
-			wickets_taken = COALESCE(wickets_taken, 0) + $4,
-			legal_balls_bowled = COALESCE(legal_balls_bowled, 0) + $5::INTEGER,
-			overs_bowled = FLOOR((COALESCE(legal_balls_bowled, 0) + $5::INTEGER) / 6.0)
-				+ MOD(COALESCE(legal_balls_bowled, 0) + $5::INTEGER, 6)::NUMERIC / 10.0,
-			updated_at = NOW()
-		WHERE match_id = $1 AND team_player_id = $2
-	`
+UPDATE player_match_stats
+SET runs_conceded      = COALESCE(runs_conceded, 0) + $3,
+    wickets_taken      = COALESCE(wickets_taken, 0) + $4,
+    legal_balls_bowled = COALESCE(legal_balls_bowled, 0) + $5::INTEGER,
+    overs_bowled       = FLOOR((COALESCE(legal_balls_bowled, 0) + $5::INTEGER) / 6.0)
+        + MOD(COALESCE(legal_balls_bowled, 0) + $5::INTEGER, 6)::NUMERIC / 10.0,
+    updated_at         = NOW()
+WHERE match_id = $1
+  AND team_player_id = $2
+    `
 	res, err := tx.Exec(sql, matchID, matchPlayerID, runsConceded, wickets, legalDelta)
 	if err != nil {
 		return err
@@ -370,5 +370,3 @@ func GetInningsRunsByNo(matchID string, inningsNo int) (int, error) {
 	err := database.DB.Get(&runs, sql, matchID, inningsNo)
 	return runs, err
 }
-
-func IsNoRows(err error) bool { return err == sql.ErrNoRows }

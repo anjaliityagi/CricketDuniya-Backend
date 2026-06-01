@@ -16,7 +16,6 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 	{
 		auth.POST("/signup", handlers.Signup)
 		auth.POST("/login", handlers.Login)
-		//auth.POST("/forgetPassword", handlers.ForgetPassword)
 
 		auth.POST("/forgot-password", handlers.ForgotPassword)
 		auth.POST("/verify-otp", handlers.VerifyOTPAndResetPassword)
@@ -30,8 +29,6 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 
 			protected.PATCH("/profile", handlers.UpdateUserProfile)
 
-			//protected.POST("/matches", handlers.CreateMatch)
-
 			protected.POST("/matches", handlers.CreateMatchWithTeams)
 
 			protected.PATCH("/matches/:id/first-pick", handlers.SetFirstPickTeam)
@@ -40,15 +37,9 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 
 			protected.PATCH("/matches/:id/lineup", handlers.UpdateMatchLineup)
 			protected.PATCH("/matches/:id/complete", handlers.CompleteMatch)
-			//
-			//protected.POST("/teams/:id/players", handlers.CreatePlayer)
 			protected.DELETE("/players/:id", handlers.DeletePlayer)
-			//protected.GET("/matches", handlers.GetAllMatches)
 
-			//protected.POST("/matches/:id/toss", handlers.DoToss)
 			protected.POST("/toss", handlers.TossHandler)
-
-			//protected.POST("/api/v1/ball/update", handlers.UpdateBall)
 
 			protected.POST("/team-players", handlers.AddPlayersToTeams)
 			protected.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)

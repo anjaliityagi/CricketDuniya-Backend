@@ -9,27 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//func CreateMatch(c *gin.Context) {
-//	var req dto.CreateMatchRequest
-//	if err := c.ShouldBindJSON(&req); err != nil {
-//		badRequest(c, "Please provide valid match details", err)
-//		return
-//	}
-//	userID := c.GetString("user_id")
-//	//fmt.Println(userID + "kdcksjdnvk")
-//	match, err := services.CreateMatch(req, userID)
-//	fmt.Println(userID)
-//	if err != nil {
-//		internalServerError(c, "Unable to create match right now. Please try again", err)
-//		return
-//	}
-//	c.JSON(http.StatusCreated, gin.H{
-//		"success": true,
-//		"message": "match created successfully",
-//		"data":    match,
-//	})
-//}
-
 func GetAllMatches(c *gin.Context) {
 	var query dto.GetMatchesQuery
 	if err := c.ShouldBindQuery(&query); err != nil {

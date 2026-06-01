@@ -10,36 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// func CreatePlayer(c *gin.Context) {
-//
-//		var req dto.CreatePlayerRequest
-//
-//		if err := c.ShouldBindJSON(&req); err != nil {
-//			badRequest(c, "Please provide valid player details", err)
-//			return
-//		}
-//
-//		teamIDStr := c.Param("id")
-//
-//		teamID, err := uuid.Parse(teamIDStr)
-//		if err != nil {
-//			badRequest(c, "Invalid team id", err)
-//			return
-//		}
-//
-//		player, err := services.CreatePlayer(req, teamID)
-//		if err != nil {
-//			internalServerError(c, "Unable to add player right now. Please try again", err)
-//			return
-//		}
-//
-//		c.JSON(http.StatusCreated, gin.H{
-//			"success": true,
-//			"message": "player added successfully",
-//			"data":    player,
-//		})
-//	}
-
 func GetPlayersDirectory(c *gin.Context) {
 	search := c.Query("search")
 	limit := 10
@@ -62,7 +32,7 @@ func GetPlayersDirectory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "players fetched successfully",
-		"data": players,
+		"data":    players,
 	})
 }
 

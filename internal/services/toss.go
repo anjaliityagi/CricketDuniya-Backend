@@ -23,9 +23,6 @@ func PerformToss(req dto.TossRequest) ([]dto.InningsResponse, error) {
 	}
 
 	tossWinnerInputID := req.TossWinnerTeamID
-	//if tossWinnerInputID == "" {
-	//	tossWinnerInputID = req.TossWinnerTeamID
-	//}
 	if tossWinnerInputID == "" {
 		return nil, errors.New("toss winner team id is required")
 	}

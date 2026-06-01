@@ -13,7 +13,6 @@ func registerPlayerRoutes(rg *gin.RouterGroup) {
 	players := rg.Group("/")
 	players.Use(middleware.AuthMiddleware())
 	{
-		//players.POST("/teams/:id/players", handlers.CreatePlayer)
 		players.DELETE("/players/:id", handlers.DeletePlayer)
 		players.POST("/team-players", handlers.AddPlayersToTeams)
 		players.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)

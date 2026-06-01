@@ -85,25 +85,6 @@ func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
 	return &user, nil
 }
 
-//
-//func GetOrCreateLiteUserByPhone(name, phoneNumber string) (*models.User, error) {
-//	var user models.User
-//
-//	query := `
-//	INSERT INTO users (name, phone_number, password_hash, is_phone_verified)
-//	VALUES ($1, $2, NULL, FALSE)
-//	ON CONFLICT (phone_number)
-//	DO UPDATE SET name = users.name
-//	RETURNING id, name, phone_number, password_hash, COALESCE(is_phone_verified, FALSE) AS is_phone_verified, created_at, updated_at
-//	`
-//
-//	if err := database.DB.Get(&user, query, name, phoneNumber); err != nil {
-//		return nil, err
-//	}
-//
-//	return &user, nil
-//}
-
 func CreateSession(userID string) (*dto.UserSession, error) {
 
 	query := `
@@ -115,24 +96,6 @@ func CreateSession(userID string) (*dto.UserSession, error) {
 	var session dto.UserSession
 
 	err := database.DB.QueryRowx(query, userID).StructScan(&session)
-	if err != nil {
-		return nil, err
-	}
-
-	return &session, nil
-}
-
-func GetSession(sessionID string) (*dto.UserSession, error) {
-
-	query := `
-	SELECT id, user_id, created_at, archived_at
-	FROM user_session
-	WHERE id = $1
-	`
-
-	var session dto.UserSession
-
-	err := database.DB.Get(&session, query, sessionID)
 	if err != nil {
 		return nil, err
 	}

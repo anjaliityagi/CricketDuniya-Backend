@@ -4,40 +4,7 @@ import (
 	"CricketDuniya-Backend/internal/database"
 	"CricketDuniya-Backend/internal/models"
 	"fmt"
-
-	"github.com/google/uuid"
 )
-
-func CreatePlayer(player *models.MatchPlayer, teamID uuid.UUID) error {
-
-	query := `
-	INSERT INTO team_players (
-		player_id,
-		team_id,
-		is_captain
-	)
-	VALUES ($1, $2, $3)
-	ON CONFLICT (team_id, player_id)
-	DO UPDATE SET
-		is_captain = EXCLUDED.is_captain,
-		deleted_at = NULL,
-		updated_at = NOW()
-	RETURNING id,team_id, created_at
-	`
-
-	return database.DB.QueryRowx(
-		query,
-
-		player.PlayerID,
-		teamID,
-
-		player.IsCaptain,
-	).Scan(
-		&player.ID,
-		&player.TeamID,
-		&player.CreatedAt,
-	)
-}
 
 func DeletePlayer(playerID string, userID string) (bool, error) {
 	query := `

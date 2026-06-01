@@ -38,7 +38,6 @@ func ForgotPassword(c *gin.Context) {
 		"success": true,
 		"message": "otp generated successfully",
 
-		// TEMP ONLY
 		"otp": otp,
 	})
 }

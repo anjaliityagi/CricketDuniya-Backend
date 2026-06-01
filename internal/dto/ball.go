@@ -12,7 +12,7 @@ type BallRequest struct {
 
 	BallNo     int    `json:"ball_no"`
 	DeliveryNo int    `json:"delivery_no"`
-	BallType   string `json:"ball_type"` // normal, wide, no_ball, bye, leg_bye, dead_ball, wicket, retired_hurt, dead_ball, wicket, retired_hurt
+	BallType   string `json:"ball_type"`
 
 	RunsScored int  `json:"runs_scored"`
 	RunsOffBat int  `json:"runs_off_bat"`

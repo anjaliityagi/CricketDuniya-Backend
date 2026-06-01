@@ -16,10 +16,9 @@ func SetupRoutes() *Server {
 
 	router := gin.Default()
 
-	// CORS
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
-			"*", // React frontend
+			"*",
 		},
 		AllowMethods: []string{
 			"GET",
@@ -38,7 +37,7 @@ func SetupRoutes() *Server {
 			"Content-Length",
 		},
 		AllowCredentials: true,
-		MaxAge: 12 * time.Hour,
+		MaxAge:           12 * time.Hour,
 	}))
 
 	v1 := router.Group("/v1")

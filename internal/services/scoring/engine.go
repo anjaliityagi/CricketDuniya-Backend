@@ -49,7 +49,6 @@ func (e *Engine) Process(req dto.BallRequest) (bat, bowl, field int, err error) 
 func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 	ctx := scoreContext{}
 
-	// batter streaks
 	if req.StrikerID.String() != "" {
 		n, err := countConsecutiveBatterBoundary(req, "four")
 		if err != nil {
@@ -71,7 +70,6 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 		ctx.batterStrikeRateBonusBefore = strikeRateBonus(ctx.batterRunsBefore, ctx.batterBallsBefore)
 	}
 
-	// bowler streaks + stats
 	if req.BowlerID.String() != "" {
 		n, err := countConsecutiveBowlerConcededBoundary(req, "four")
 		if err != nil {

@@ -5,7 +5,6 @@ import (
 	"CricketDuniya-Backend/internal/repositories"
 	"CricketDuniya-Backend/internal/services"
 
-	//"CricketDuniya-Backend/internal/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -65,16 +64,3 @@ func Logout(c *gin.Context) {
 		"message": "logged out successfully",
 	})
 }
-
-//
-//func forgetPassword(c *gin.Context) {
-//	var req dto.LoginRequest
-//	if err := c.ShouldBindJSON(&req); err != nil {
-//		c.JSON(http.StatusBadRequest, gin.H{
-//			"success": false,
-//			"message": err.Error(),
-//		})
-//		return
-//
-//	}
-//}

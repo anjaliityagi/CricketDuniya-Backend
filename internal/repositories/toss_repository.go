@@ -15,31 +15,6 @@ type MatchTeam struct {
 	TeamID *string `db:"team_id"`
 }
 
-//func GetMatchByID(matchID string) (*Match, error) {
-//
-//	query := `
-//	SELECT id, team_a_id, team_b_id
-//	FROM matches
-//	WHERE id = $1
-//	`
-//
-//	row := database.DB.QueryRow(query, matchID)
-//
-//	var match Match
-//
-//	err := row.Scan(
-//		&match.ID,
-//		&match.TeamAID,
-//		&match.TeamBID,
-//	)
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return &match, nil
-//}
-
 func GetMatchTeams(matchID string) ([]MatchTeam, error) {
 	query := `
 		SELECT team_a_id AS id, team_a_id AS team_id

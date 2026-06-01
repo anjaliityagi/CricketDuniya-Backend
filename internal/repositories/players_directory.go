@@ -16,24 +16,30 @@ func GetPlayersDirectory(search string, limit int) ([]dto.PlayerDirectoryItem, e
 	}
 
 	query := `SELECT
-		u.id,
-		COALESCE(u.name,'') AS name,
-		u.phone_number,
-		u.batting_style,
-		u.bowling_style,
-		COUNT(DISTINCT pms.match_id)::INT AS matches_played,
-		COALESCE(SUM(pms.fantasy_points), 0)::INT AS points
-	FROM users u
-	LEFT JOIN team_players tp ON tp.player_id = u.id
-	LEFT JOIN player_match_stats pms ON pms.team_player_id = tp.id`
+    u.id,
+    COALESCE(u.name,'') AS name,
+    u.phone_number,
+    u.batting_style,
+    u.bowling_style,
+    COUNT(DISTINCT pms.match_id)::INT AS matches_played,
+    COALESCE(SUM(pms.fantasy_points), 0)::INT AS points
+  FROM users u
+  LEFT JOIN team_players tp ON tp.player_id = u.id
+  LEFT JOIN player_match_stats pms ON pms.team_player_id = tp.id
+  GROUP BY
+    u.id,
+    u.name,
+    u.phone_number,
+    u.batting_style,
+    u.bowling_style;`
 
 	args := []interface{}{}
 	trimmedSearch := strings.TrimSpace(search)
 	if trimmedSearch != "" {
 		query += `
 		WHERE u.name ILIKE $1
-		   OR u.phone_number ILIKE $1
-		`
+		   OR u.phone_number ILIKE $1`
+
 		args = append(args, "%"+trimmedSearch+"%")
 	}
 

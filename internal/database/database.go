@@ -60,7 +60,6 @@ func ConnectAndMigrate(
 	DB = db
 
 	return migrateUp(db)
-	//return nil
 }
 
 func migrateUp(db *sqlx.DB) error {

@@ -32,6 +32,10 @@ type RebuiltInningsTotals struct {
 	Wickets int `db:"wickets"`
 	Legal   int `db:"legal"`
 }
+type MatchTeams struct {
+	TeamAID string `db:"team_a_id"`
+	TeamBID string `db:"team_b_id"`
+}
 
 func GetInningsMetaTx(tx *sqlx.Tx, inningsID uuid.UUID) (*InningsMeta, error) {
 	var m InningsMeta
@@ -87,11 +91,6 @@ func InsertInningsTx(tx *sqlx.Tx, matchID, battingTeamID, bowlingTeamID string, 
 	return err
 }
 
-type MatchTeams struct {
-	TeamAID string `db:"team_a_id"`
-	TeamBID string `db:"team_b_id"`
-}
-
 func GetMatchTeamsTx(tx *sqlx.Tx, matchID string) (*MatchTeams, error) {
 	var t MatchTeams
 	sql := `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`
@@ -101,12 +100,12 @@ func GetMatchTeamsTx(tx *sqlx.Tx, matchID string) (*MatchTeams, error) {
 	return &t, nil
 }
 
-func GetMaxSuperOverNoTx(tx *sqlx.Tx, matchID string) (int, error) {
-	var n int
-	sql := `SELECT COALESCE(MAX(super_over_no), 0) FROM super_overs WHERE match_id = $1`
-	err := tx.Get(&n, sql, matchID)
-	return n, err
-}
+//func GetMaxSuperOverNoTx(tx *sqlx.Tx, matchID string) (int, error) {
+//	var n int
+//	sql := `SELECT COALESCE(MAX(super_over_no), 0) FROM super_overs WHERE match_id = $1`
+//	err := tx.Get(&n, sql, matchID)
+//	return n, err
+//}
 
 func LinkSuperOverToInningsTx(tx *sqlx.Tx, matchID string, inningsID uuid.UUID, battingTeamID, bowlingTeamID string, superOverNo int) error {
 	sql := `
@@ -125,12 +124,12 @@ func GetInningsIDByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (uuid.UUID, 
 	return id, err
 }
 
-func GetInningsRunsByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
-	var runs int
-	sql := `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`
-	err := tx.Get(&runs, sql, matchID, inningsNo)
-	return runs, err
-}
+//func GetInningsRunsByNoTx(tx *sqlx.Tx, matchID string, inningsNo int) (int, error) {
+//	var runs int
+//	sql := `SELECT COALESCE(total_runs, 0) FROM innings WHERE match_id = $1 AND innings_no = $2 LIMIT 1`
+//	err := tx.Get(&runs, sql, matchID, inningsNo)
+//	return runs, err
+//}
 
 func GetPreviousOverBowlerIDTx(tx *sqlx.Tx, inningsID uuid.UUID) (string, error) {
 	var bowlerID dbsql.NullString

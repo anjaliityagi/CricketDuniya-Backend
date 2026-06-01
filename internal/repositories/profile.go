@@ -6,18 +6,15 @@ import (
 )
 
 func GetUserProfileUser(userID string) (*dto.UserProfileUser, error) {
-	query := `
-	SELECT
-		id,
-		name,
-		phone_number,
-		batting_style,
-		bowling_style,
-		created_at,
-		updated_at
-	FROM users
-	WHERE id = $1
-	`
+	query := `SELECT id,
+       name,
+       phone_number,
+       batting_style,
+       bowling_style,
+       created_at,
+       updated_at
+       FROM users
+       WHERE id = $1`
 
 	var user dto.UserProfileUser
 	err := database.DB.Get(&user, query, userID)

@@ -5,7 +5,6 @@ import "CricketDuniya-Backend/internal/dto"
 func batting(req dto.BallRequest, ctx scoreContext) int {
 	points := 0
 
-	// runs
 	switch req.RunsOffBat {
 	case 1:
 		points += 1
