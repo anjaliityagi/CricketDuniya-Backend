@@ -448,6 +448,7 @@ func persistFantasyTx(tx *sqlx.Tx, req dto.BallRequest, ballEventID string, batt
 			return err
 		}
 	}
+	
 	if req.BowlerID.String() != "" && bowlingPoints != 0 {
 		if err := repositories.UpsertFantasyPointsTx(tx, req.MatchID.String(), req.BowlerID.String(), bowlingPoints, "bowling_points"); err != nil {
 			return err

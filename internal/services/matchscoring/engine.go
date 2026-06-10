@@ -52,6 +52,20 @@ func (e *Engine) Process(req dto.BallRequest) (*Update, error) {
 		}
 	}
 
+	if req.FielderID != nil && req.FielderID.String() != "" && req.IsWicket {
+		dismissalType := strings.ToLower(strings.TrimSpace(req.DismissalType))
+		if err := repositories.UpsertFieldingStatsTx(
+			tx,
+			req.MatchID.String(),
+			req.FielderID.String(),
+			dismissalType == "caught",
+			dismissalType == "stumped",
+			dismissalType == "run_out",
+		); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}

@@ -134,6 +134,7 @@ func GetAllMatches(query dto.GetMatchesQuery) ([]dto.MatchResponse, error) {
 
 	return matches, nil
 }
+
 func GetMatchByID(matchID string) (*models.Match, error) {
 
 	var match models.Match
@@ -475,6 +476,7 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	defer tx.Rollback()
 
 	sql := `UPDATE matches

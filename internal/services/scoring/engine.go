@@ -113,7 +113,9 @@ func buildScoreContext(req dto.BallRequest) (scoreContext, error) {
 }
 
 func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (int, error) {
+
 	items, err := repositories.ListRecentRunsOffBatForStriker(req.MatchID.String(), req.InningsID.String(), req.StrikerID.String(), 24)
+
 	if err != nil {
 		return 0, err
 	}
@@ -134,6 +136,7 @@ func countConsecutiveBatterBoundary(req dto.BallRequest, boundaryType string) (i
 }
 
 func countConsecutiveBowlerConcededBoundary(req dto.BallRequest, boundaryType string) (int, error) {
+
 	items, err := repositories.ListRecentRunsOffBatForBowler(req.MatchID.String(), req.InningsID.String(), req.BowlerID.String(), 24)
 	if err != nil {
 		return 0, err

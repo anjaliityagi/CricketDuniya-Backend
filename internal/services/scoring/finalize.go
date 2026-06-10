@@ -7,6 +7,7 @@ func ApplyResultPoints(matchID string, winnerMatchTeamID string) error {
 	if err != nil {
 		return err
 	}
+
 	defer tx.Rollback()
 
 	if err := repositories.ApplyResultPointsTx(tx, matchID, winnerMatchTeamID); err != nil {

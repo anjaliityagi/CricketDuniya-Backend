@@ -267,6 +267,52 @@ WHERE match_id = $1
 	return err
 }
 
+func UpsertFieldingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, isCatch, isStumping, isRunOut bool) error {
+
+	catches, stumpings , runouts := 0, 0, 0
+
+	if isCatch {
+		catches = 1
+	}
+	if isStumping {
+		stumpings = 1
+	}
+	if isRunOut {
+		runouts = 1
+	}
+	if catches == 0 && stumpings == 0 && runouts == 0 {
+		return nil
+	}
+
+	sql := `
+		UPDATE player_match_stats
+		SET catches = COALESCE(catches, 0) + $3,
+			stumping = COALESCE(stumping, 0) + $4,
+			runouts = COALESCE(runouts, 0) + $5,
+			updated_at = NOW()
+		WHERE match_id = $1 AND team_player_id = $2
+	`
+	res, err := tx.Exec(sql, matchID, matchPlayerID, catches, stumpings, runouts)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows > 0 {
+		return nil
+	}
+	sql = `
+		INSERT INTO player_match_stats (match_id, player_id, team_player_id, catches, stumping, runouts, updated_at)
+		SELECT $1, tp.player_id, tp.id, $3, $4, $5, NOW()
+		FROM team_players tp
+		WHERE tp.id = $2 AND tp.player_id IS NOT NULL
+	`
+	_, err = tx.Exec(sql, matchID, matchPlayerID, catches, stumpings, runouts)
+	return err
+}
+
 func UpsertFantasyPointsTx(tx *sqlx.Tx, matchID, matchPlayerID string, points int, bucket string) error {
 	if bucket != "batting_points" && bucket != "bowling_points" && bucket != "fielding_points" {
 		return nil
