@@ -54,6 +54,8 @@ func SetupRoutes() *Server {
 		MatchRoutes(v1)
 		ScoringRoutes(v1)
 
+		RegisterWinProbabilityRoutes(v1)
+
 	}
 
 	return &Server{
