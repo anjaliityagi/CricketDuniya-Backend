@@ -8,7 +8,7 @@ import (
 )
 
 func registerPlayerRoutes(rg *gin.RouterGroup) {
-	rg.GET("/players", handlers.GetPlayersDirectory)
+	//rg.GET("/players", handlers.GetPlayersDirectory)
 
 	players := rg.Group("/")
 	players.Use(middleware.AuthMiddleware())
@@ -17,5 +17,6 @@ func registerPlayerRoutes(rg *gin.RouterGroup) {
 		players.POST("/team-players", handlers.AddPlayersToTeams)
 		players.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)
 		players.PUT("players/:player_id/assign-umpire", handlers.AssignUmpire)
+
 	}
 }

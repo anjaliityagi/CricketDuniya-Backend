@@ -53,7 +53,7 @@ func SetupRoutes() *Server {
 		registerTeamRoutes(v1)
 		MatchRoutes(v1)
 		ScoringRoutes(v1)
-
+		registerPlayerRoutes(v1)
 		RegisterWinProbabilityRoutes(v1)
 
 	}

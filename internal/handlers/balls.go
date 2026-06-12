@@ -9,17 +9,17 @@ import (
 	"github.com/google/uuid"
 )
 
-type BallHandler struct {
-	matchEngine *matchscoring.Engine
-}
+//type BallHandler struct {
+//	matchEngine *matchscoring.Engine
+//}
+//
+//func NewBallHandler() *BallHandler {
+//	return &BallHandler{
+//		matchEngine: matchscoring.NewEngine(),
+//	}
+//}
 
-func NewBallHandler() *BallHandler {
-	return &BallHandler{
-		matchEngine: matchscoring.NewEngine(),
-	}
-}
-
-func (h *BallHandler) AddBall(c *gin.Context) {
+func AddBall(c *gin.Context) {
 	var req dto.BallInputRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -27,7 +27,7 @@ func (h *BallHandler) AddBall(c *gin.Context) {
 		return
 	}
 
-	result, err := h.matchEngine.ProcessBall(req)
+	result, err := matchscoring.ProcessBall(req)
 	if err != nil {
 		if isScoringClientError(err) {
 			badRequest(c, err.Error(), err)
@@ -43,7 +43,7 @@ func (h *BallHandler) AddBall(c *gin.Context) {
 	})
 }
 
-func (h *BallHandler) OverrideInningsState(c *gin.Context) {
+func OverrideInningsState(c *gin.Context) {
 	inningsID, err := uuid.Parse(c.Param("innings_id"))
 	if err != nil {
 		badRequest(c, "Invalid innings id", err)
@@ -56,7 +56,7 @@ func (h *BallHandler) OverrideInningsState(c *gin.Context) {
 		return
 	}
 
-	state, err := h.matchEngine.OverrideState(inningsID, req)
+	state, err := matchscoring.OverrideState(inningsID, req)
 	if err != nil {
 		if isScoringClientError(err) {
 			badRequest(c, err.Error(), err)
@@ -72,14 +72,14 @@ func (h *BallHandler) OverrideInningsState(c *gin.Context) {
 	})
 }
 
-func (h *BallHandler) UndoLastBall(c *gin.Context) {
+func UndoLastBall(c *gin.Context) {
 	inningsID, err := uuid.Parse(c.Param("innings_id"))
 	if err != nil {
 		badRequest(c, "Invalid innings id", err)
 		return
 	}
 
-	state, err := h.matchEngine.UndoLastBall(inningsID)
+	state, err := matchscoring.UndoLastBall(inningsID)
 	if err != nil {
 		if isScoringClientError(err) {
 			badRequest(c, err.Error(), err)

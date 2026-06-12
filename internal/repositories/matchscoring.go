@@ -191,6 +191,37 @@ func CountStrikersOnTeamTx(tx *sqlx.Tx, strikerID, nonStrikerID, teamID string) 
 	return c, err
 }
 
+func CountActiveTeamPlayersTx(tx *sqlx.Tx, teamID string) (int, error) {
+	var c int
+	sql := `SELECT COUNT(1) FROM team_players WHERE team_id = $1 AND deleted_at IS NULL`
+	err := tx.Get(&c, sql, teamID)
+	return c, err
+}
+
+func CountPlayerOnTeamTx(tx *sqlx.Tx, playerID, teamID string) (int, error) {
+	var c int
+	sql := `SELECT COUNT(1) FROM team_players WHERE id = $1 AND team_id = $2 AND deleted_at IS NULL`
+	err := tx.Get(&c, sql, playerID, teamID)
+	return c, err
+}
+
+func CountRetiredHurtBattersTx(tx *sqlx.Tx, inningsID uuid.UUID) (int, error) {
+	var c int
+	sql := `
+		SELECT COUNT(DISTINCT dismissed_player_id)
+		FROM ball_events
+		WHERE innings_id = $1
+		  AND is_deleted = FALSE
+		  AND dismissed_player_id IS NOT NULL
+		  AND (
+			  LOWER(COALESCE(ball_type, '')) = 'retired_hurt'
+			  OR LOWER(COALESCE(dismissal_type, '')) = 'retired_hurt'
+		  )
+	`
+	err := tx.Get(&c, sql, inningsID)
+	return c, err
+}
+
 func CountBowlerOnTeamTx(tx *sqlx.Tx, bowlerID, teamID string) (int, error) {
 	var c int
 	sql := `SELECT COUNT(1) FROM team_players WHERE id = $1 AND team_id = $2 AND deleted_at IS NULL`
@@ -296,7 +327,7 @@ func GetRebuiltInningsTotalsTx(tx *sqlx.Tx, inningsID uuid.UUID) (*RebuiltInning
 	var rebuilt RebuiltInningsTotals
 	sql := `
 		SELECT COALESCE(SUM(total_runs),0) AS runs,
-			   COALESCE(SUM(CASE WHEN is_wicket THEN 1 ELSE 0 END),0) AS wickets,
+			   COALESCE(SUM(CASE WHEN is_wicket AND LOWER(COALESCE(dismissal_type, '')) <> 'retired_hurt' AND LOWER(COALESCE(ball_type, '')) <> 'retired_hurt' THEN 1 ELSE 0 END),0) AS wickets,
 			   COALESCE(SUM(CASE WHEN COALESCE(ball_type, 'normal') NOT IN ('wide','no_ball','dead_ball','retired_hurt') THEN 1 ELSE 0 END),0) AS legal
 		FROM ball_events
 		WHERE innings_id = $1 AND is_deleted = FALSE
@@ -392,6 +423,8 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		  AND tp.id IN (
 			SELECT be.striker_id FROM ball_events be WHERE be.match_id = $1 AND be.is_deleted = FALSE AND be.striker_id IS NOT NULL
 			UNION
+			SELECT be.non_striker_id FROM ball_events be WHERE be.match_id = $1 AND be.is_deleted = FALSE AND be.non_striker_id IS NOT NULL
+			UNION
 			SELECT be.bowler_id FROM ball_events be WHERE be.match_id = $1 AND be.is_deleted = FALSE AND be.bowler_id IS NOT NULL
 			UNION
 			SELECT be.dismissed_player_id FROM ball_events be WHERE be.match_id = $1 AND be.is_deleted = FALSE AND be.dismissed_player_id IS NOT NULL
@@ -452,7 +485,12 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		WITH dismissed AS (
 			SELECT DISTINCT dismissed_player_id AS team_player_id
 			FROM ball_events
-			WHERE match_id = $1 AND is_deleted = FALSE AND is_wicket = TRUE AND dismissed_player_id IS NOT NULL
+			WHERE match_id = $1
+			  AND is_deleted = FALSE
+			  AND is_wicket = TRUE
+			  AND dismissed_player_id IS NOT NULL
+			  AND LOWER(COALESCE(ball_type, '')) <> 'retired_hurt'
+			  AND LOWER(COALESCE(dismissal_type, '')) <> 'retired_hurt'
 		)
 		UPDATE player_match_stats pms
 		SET is_out = TRUE, updated_at = NOW()
@@ -468,7 +506,7 @@ func RebuildPlayerMatchStatsTx(tx *sqlx.Tx, matchID string) error {
 		WITH bowling AS (
 			SELECT be.bowler_id AS team_player_id,
 				COALESCE(SUM(GREATEST(COALESCE(be.total_runs, 0) - COALESCE(be.byes, 0) - COALESCE(be.leg_byes, 0), 0)), 0)::INT AS runs_conceded,
-				COALESCE(SUM(CASE WHEN COALESCE(be.is_wicket, FALSE) THEN 1 ELSE 0 END), 0)::INT AS wickets_taken,
+				COALESCE(SUM(CASE WHEN COALESCE(be.is_wicket, FALSE) AND LOWER(COALESCE(be.ball_type, '')) <> 'retired_hurt' AND LOWER(COALESCE(be.dismissal_type, '')) <> 'retired_hurt' THEN 1 ELSE 0 END), 0)::INT AS wickets_taken,
 				COALESCE(SUM(CASE WHEN COALESCE(be.ball_type, 'normal') NOT IN ('wide', 'no_ball', 'dead_ball', 'retired_hurt') THEN 1 ELSE 0 END), 0)::INT AS legal_balls_bowled
 			FROM ball_events be
 			WHERE be.match_id = $1 AND be.is_deleted = FALSE AND be.bowler_id IS NOT NULL

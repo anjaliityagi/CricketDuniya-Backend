@@ -330,20 +330,37 @@ func GetMatchScorecard(matchID string) (*dto.MatchScorecardResponse, error) {
 		id,
 		innings_id,
 		ball_no,
-		COALESCE(delivery_no, delivery_number, 1) AS delivery_no,
+		COALESCE(delivery_no, 1) AS delivery_no,
 		COALESCE(ball_type, 'normal') AS ball_type,
 		COALESCE(is_free_hit, FALSE) AS is_free_hit,
 		COALESCE(total_runs, 0) AS total_runs,
-		COALESCE(is_wicket, FALSE) AS is_wicket,
+		(COALESCE(is_wicket, FALSE) AND LOWER(COALESCE(ball_type, '')) <> 'retired_hurt' AND LOWER(COALESCE(dismissal_type, '')) <> 'retired_hurt') AS is_wicket,
 		striker_id,
 		non_striker_id,
 		bowler_id,
 		dismissal_type
-	FROM ball_events
-	WHERE match_id = $1
-	  AND is_deleted = FALSE
-	ORDER BY created_at DESC
-	LIMIT 12
+	FROM (
+		SELECT
+			id,
+			innings_id,
+			ball_no,
+			COALESCE(delivery_no, 1) AS delivery_no,
+			COALESCE(ball_type, 'normal') AS ball_type,
+			COALESCE(is_free_hit, FALSE) AS is_free_hit,
+			COALESCE(total_runs, 0) AS total_runs,
+			(COALESCE(is_wicket, FALSE) AND LOWER(COALESCE(ball_type, '')) <> 'retired_hurt' AND LOWER(COALESCE(dismissal_type, '')) <> 'retired_hurt') AS is_wicket,
+			striker_id,
+			non_striker_id,
+			bowler_id,
+			dismissal_type,
+			created_at
+		FROM ball_events
+		WHERE match_id = $1
+		  AND is_deleted = FALSE
+		ORDER BY created_at DESC, id DESC
+		LIMIT 12
+	) recent
+	ORDER BY created_at ASC, id ASC
 	`
 	if err := database.DB.Select(&scorecard.RecentBalls, recentBallsQuery, matchID); err != nil {
 		return nil, err
@@ -396,7 +413,7 @@ func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveri
 		be.id,
 		be.innings_id,
 		be.ball_no,
-		COALESCE(be.delivery_no, be.delivery_number, 1) AS delivery_no,
+		COALESCE(be.delivery_no, 1) AS delivery_no,
 		COALESCE(be.ball_type, 'normal') AS ball_type,
 		COALESCE(be.runs_scored, be.total_runs, 0) AS runs_scored,
 		COALESCE(be.runs_off_bat, 0) AS runs_off_bat,
@@ -405,7 +422,7 @@ func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveri
 		COALESCE(be.is_dot_ball, FALSE) AS is_dot_ball,
 		COALESCE(be.is_boundary_four, FALSE) AS is_boundary_four,
 		COALESCE(be.is_boundary_six, FALSE) AS is_boundary_six,
-		COALESCE(be.is_wicket, FALSE) AS is_wicket,
+		(COALESCE(be.is_wicket, FALSE) AND LOWER(COALESCE(be.ball_type, '')) <> 'retired_hurt' AND LOWER(COALESCE(be.dismissal_type, '')) <> 'retired_hurt') AS is_wicket,
 		COALESCE(be.is_free_hit, FALSE) AS is_free_hit,
 		be.striker_id,
 		be.non_striker_id,
@@ -422,7 +439,7 @@ func GetMatchDeliveriesByInnings(matchID string) ([]dto.ScorecardInningsDeliveri
 	LEFT JOIN super_overs so ON so.innings_id = i.id
 	WHERE i.match_id = $1
 	  AND be.is_deleted = FALSE
-	ORDER BY i.innings_no ASC, be.ball_no ASC, COALESCE(be.delivery_no, be.delivery_number, 1) ASC, be.created_at ASC
+	ORDER BY i.innings_no ASC, be.ball_no ASC, COALESCE(be.delivery_no, 1) ASC, be.created_at ASC
 	`
 	if err := database.DB.Select(&rows, query, matchID); err != nil {
 		return nil, err

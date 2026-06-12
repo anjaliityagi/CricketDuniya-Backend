@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-type Engine struct{}
-
-func NewEngine() *Engine {
-	return &Engine{}
-}
+//type Engine struct{}
+////
+////func NewEngine() *Engine {
+////	return &Engine{}
+////}
 
 type scoreContext struct {
 	prevConsecutiveBatterFours int
@@ -34,7 +34,7 @@ type scoreContext struct {
 	overBoundariesBefore   int
 }
 
-func (e *Engine) Process(req dto.BallRequest) (bat, bowl, field int, err error) {
+func Process(req dto.BallRequest) (bat, bowl, field int, err error) {
 	ctx, err := buildScoreContext(req)
 	if err != nil {
 		return 0, 0, 0, err

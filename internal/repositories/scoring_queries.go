@@ -269,7 +269,7 @@ WHERE match_id = $1
 
 func UpsertFieldingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, isCatch, isStumping, isRunOut bool) error {
 
-	catches, stumpings , runouts := 0, 0, 0
+	catches, stumpings, runouts := 0, 0, 0
 
 	if isCatch {
 		catches = 1
@@ -389,6 +389,21 @@ func ApplyNotOutBonus(matchID, inningsID string) error {
 			  FROM ball_events be
 			  WHERE be.match_id = $1 AND be.innings_id = $2
 			    AND be.striker_id IS NOT NULL AND be.is_deleted = FALSE
+			  UNION
+			  SELECT DISTINCT be.non_striker_id
+			  FROM ball_events be
+			  WHERE be.match_id = $1 AND be.innings_id = $2
+			    AND be.non_striker_id IS NOT NULL AND be.is_deleted = FALSE
+			  UNION
+			  SELECT DISTINCT be.dismissed_player_id
+			  FROM ball_events be
+			  WHERE be.match_id = $1 AND be.innings_id = $2
+			    AND be.dismissed_player_id IS NOT NULL
+			    AND be.is_deleted = FALSE
+			    AND (
+			        LOWER(COALESCE(be.ball_type, '')) = 'retired_hurt'
+			        OR LOWER(COALESCE(be.dismissal_type, '')) = 'retired_hurt'
+			    )
 		  )
 		  AND COALESCE(pms.is_out, FALSE) = FALSE
 	`

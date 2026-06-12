@@ -32,7 +32,7 @@ type ProcessBallResult struct {
 	State dto.InningsStateResponse
 }
 
-func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, error) {
+func ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, error) {
 	tx, err := database.DB.Beginx()
 	if err != nil {
 		return nil, err
@@ -65,6 +65,13 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	if err := validateActorTeams(tx, inningsMeta.BattingTeamID, inningsMeta.BowlingTeamID, activeStriker, activeNonStriker, activeBowler); err != nil {
 		return nil, err
 	}
+	battingPlayerCount, err := repositories.CountActiveTeamPlayersTx(tx, inningsMeta.BattingTeamID)
+	if err != nil {
+		return nil, err
+	}
+	if battingPlayerCount < 2 {
+		return nil, errors.New("batting team must have at least two active players")
+	}
 
 	if state.LegalBalls > 0 && state.CurrentBall == 0 {
 		previousOverBowlerID, err := getPreviousOverBowlerID(tx, req.InningsID)
@@ -76,6 +83,11 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		}
 	}
 	internalReq, legalBall := mapBallRequest(req, activeStriker, activeNonStriker, activeBowler, state)
+	isRetiredHurt := strings.EqualFold(internalReq.BallType, "retired_hurt") || strings.EqualFold(internalReq.DismissalType, "retired_hurt")
+	if isRetiredHurt {
+		internalReq.IsWicket = false
+		internalReq.FielderID = nil
+	}
 	if internalReq.BallType == "no_ball" && internalReq.IsWicket && !allowedFreeHitDismissal(internalReq.DismissalType) {
 		internalReq.IsWicket = false
 		internalReq.DismissalType = ""
@@ -86,12 +98,50 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 		return nil, errors.New("dismissal not allowed on free hit")
 	}
 
-	matchUpdate, err := e.Process(internalReq)
+	isRetiredOut := strings.EqualFold(internalReq.DismissalType, "retired_out")
+	needsReplacement := internalReq.IsWicket || isRetiredHurt || isRetiredOut
+	batterDismissed := false
+	inningsCompletedByWickets := false
+	inningsCompletedByNoReplacement := false
+	if needsReplacement && internalReq.DismissedPlayerID != nil {
+		dismissedID := internalReq.DismissedPlayerID.String()
+		batterDismissed = dismissedID == activeStriker || dismissedID == activeNonStriker
+		if batterDismissed && internalReq.IsWicket {
+			maxWickets := battingPlayerCount - 1
+			inningsCompletedByWickets = state.TotalWickets+1 >= maxWickets
+		}
+		if batterDismissed && isRetiredHurt && !internalReq.IsWicket {
+			retiredHurtCount, err := repositories.CountRetiredHurtBattersTx(tx, req.InningsID)
+			if err != nil {
+				return nil, err
+			}
+			unavailableBatters := state.TotalWickets + retiredHurtCount
+			inningsCompletedByNoReplacement = unavailableBatters+1 >= battingPlayerCount-1
+		}
+		if batterDismissed && !inningsCompletedByWickets && !inningsCompletedByNoReplacement {
+			if req.NextBatterID == nil {
+				return nil, errors.New("next_batter_id is required unless the innings is completed")
+			}
+			nextBatterID := req.NextBatterID.String()
+			if nextBatterID == activeStriker || nextBatterID == activeNonStriker {
+				return nil, errors.New("next_batter_id must be different from active batters")
+			}
+			c, err := repositories.CountPlayerOnTeamTx(tx, nextBatterID, inningsMeta.BattingTeamID)
+			if err != nil {
+				return nil, err
+			}
+			if c != 1 {
+				return nil, errors.New("next_batter_id must belong to batting team")
+			}
+		}
+	}
+
+	matchUpdate, err := Process(internalReq)
 	if err != nil {
 		return nil, err
 	}
 
-	bat, bowl, field, err := scoring.NewEngine().Process(internalReq)
+	bat, bowl, field, err := scoring.Process(internalReq)
 	if err != nil {
 		return nil, err
 	}
@@ -109,29 +159,16 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	nextNonStriker := activeNonStriker
 	nextBowler := activeBowler
 	needsNextBatter := false
-	noBatterLeft := false
-	needsReplacement := internalReq.IsWicket || strings.EqualFold(internalReq.DismissalType, "retired_hurt") || strings.EqualFold(internalReq.DismissalType, "retired_out")
 
-	if needsReplacement && internalReq.DismissedPlayerID != nil {
+	if needsReplacement && internalReq.DismissedPlayerID != nil && !inningsCompletedByWickets && !inningsCompletedByNoReplacement {
 		dismissedID := internalReq.DismissedPlayerID.String()
-		if req.NextBatterID == nil && dismissedID == nextStriker && dismissedID == nextNonStriker {
-			noBatterLeft = true
-		}
 		if dismissedID == nextStriker {
-			if req.NextBatterID == nil {
-				nextStriker = nextNonStriker
-			} else {
-				nextStriker = req.NextBatterID.String()
-				needsNextBatter = true
-			}
+			nextStriker = req.NextBatterID.String()
+			needsNextBatter = true
 		}
 		if dismissedID == nextNonStriker {
-			if req.NextBatterID == nil {
-				nextNonStriker = nextStriker
-			} else {
-				nextNonStriker = req.NextBatterID.String()
-				needsNextBatter = true
-			}
+			nextNonStriker = req.NextBatterID.String()
+			needsNextBatter = true
 		}
 	}
 
@@ -164,7 +201,10 @@ func (e *Engine) ProcessBall(req dto.BallInputRequest) (*ProcessBallResult, erro
 	if nextLegalBalls >= overLimitBalls {
 		inningsCompleted = true
 	}
-	if noBatterLeft {
+	if inningsCompletedByWickets {
+		inningsCompleted = true
+	}
+	if inningsCompletedByNoReplacement {
 		inningsCompleted = true
 	}
 
@@ -329,11 +369,14 @@ func resolveActors(req dto.BallInputRequest, state *InningsState) (striker, nonS
 }
 
 func validateActorTeams(tx *sqlx.Tx, battingTeamID, bowlingTeamID, strikerID, nonStrikerID, bowlerID string) error {
+	if strikerID == nonStrikerID {
+		return errors.New("striker_id and non_striker_id must be different players")
+	}
 	c, err := repositories.CountStrikersOnTeamTx(tx, strikerID, nonStrikerID, battingTeamID)
 	if err != nil {
 		return err
 	}
-	if c < 1 {
+	if c != 2 {
 		return errors.New("striker/non_striker must belong to batting team")
 	}
 	c, err = repositories.CountBowlerOnTeamTx(tx, bowlerID, bowlingTeamID)
@@ -448,7 +491,7 @@ func persistFantasyTx(tx *sqlx.Tx, req dto.BallRequest, ballEventID string, batt
 			return err
 		}
 	}
-	
+
 	if req.BowlerID.String() != "" && bowlingPoints != 0 {
 		if err := repositories.UpsertFantasyPointsTx(tx, req.MatchID.String(), req.BowlerID.String(), bowlingPoints, "bowling_points"); err != nil {
 			return err
@@ -468,7 +511,7 @@ func persistFantasyTx(tx *sqlx.Tx, req dto.BallRequest, ballEventID string, batt
 	return nil
 }
 
-func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRequest) (*dto.InningsStateResponse, error) {
+func OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRequest) (*dto.InningsStateResponse, error) {
 	tx, err := database.DB.Beginx()
 	if err != nil {
 		return nil, err
@@ -550,7 +593,7 @@ func (e *Engine) OverrideState(inningsID uuid.UUID, req dto.UpdateInningsStateRe
 	}, nil
 }
 
-func (e *Engine) UndoLastBall(inningsID uuid.UUID) (*dto.InningsStateResponse, error) {
+func UndoLastBall(inningsID uuid.UUID) (*dto.InningsStateResponse, error) {
 	tx, err := database.DB.Beginx()
 	if err != nil {
 		return nil, err

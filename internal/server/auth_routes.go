@@ -37,13 +37,13 @@ func registerAuthRoutes(rg *gin.RouterGroup) {
 
 			protected.PATCH("/matches/:id/lineup", handlers.UpdateMatchLineup)
 			protected.PATCH("/matches/:id/complete", handlers.CompleteMatch)
-			protected.DELETE("/players/:id", handlers.DeletePlayer)
+			//protected.DELETE("/players/:id", handlers.DeletePlayer)
 
 			protected.POST("/toss", handlers.TossHandler)
-
-			protected.POST("/team-players", handlers.AddPlayersToTeams)
-			protected.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)
-			protected.PUT("players/:player_id/assign-umpire", handlers.AssignUmpire)
+			//
+			//protected.POST("/team-players", handlers.AddPlayersToTeams)
+			//protected.PUT("players/:player_id/assign-captain", handlers.AssignCaptain)
+			//protected.PUT("players/:player_id/assign-umpire", handlers.AssignUmpire)
 
 		}
 	}

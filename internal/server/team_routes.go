@@ -2,7 +2,6 @@ package server
 
 import (
 	"CricketDuniya-Backend/internal/handlers"
-	"CricketDuniya-Backend/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,7 +9,7 @@ import (
 func registerTeamRoutes(rg *gin.RouterGroup) {
 
 	teams := rg.Group("/teams")
-	teams.Use(middleware.AuthMiddleware())
+	//teams.Use(middleware.AuthMiddleware())
 
 	teams.POST("", handlers.CreateTeam)
 	teams.GET("/:id", handlers.GetTeam)

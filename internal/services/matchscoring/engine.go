@@ -11,13 +11,7 @@ type Update struct {
 	InningsWickets int `json:"innings_wickets"`
 }
 
-type Engine struct{}
-
-func NewEngine() *Engine {
-	return &Engine{}
-}
-
-func (e *Engine) Process(req dto.BallRequest) (*Update, error) {
+func Process(req dto.BallRequest) (*Update, error) {
 	tx, err := repositories.BeginTx()
 	if err != nil {
 		return nil, err
