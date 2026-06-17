@@ -21,15 +21,12 @@ func CreateUser(user *models.User) error {
 	RETURNING id, created_at, updated_at
 	`
 
-	return database.DB.QueryRow(
+	return database.DB.Get(
+		user,
 		query,
 		user.Name,
 		user.PhoneNumber,
 		user.PasswordHash,
-	).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.UpdatedAt,
 	)
 }
 
@@ -46,14 +43,11 @@ func CreateGuestUser(user *models.User) error {
 	RETURNING id, created_at, updated_at
 	`
 
-	return database.DB.QueryRow(
+	return database.DB.Get(
+		user,
 		query,
 		user.Name,
 		user.PhoneNumber,
-	).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.UpdatedAt,
 	)
 }
 func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
@@ -95,7 +89,7 @@ func CreateSession(userID string) (*dto.UserSession, error) {
 
 	var session dto.UserSession
 
-	err := database.DB.QueryRowx(query, userID).StructScan(&session)
+	err := database.DB.Get(&session, query, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -6,12 +6,6 @@ import (
 	"strings"
 )
 
-//type Engine struct{}
-////
-////func NewEngine() *Engine {
-////	return &Engine{}
-////}
-
 type scoreContext struct {
 	prevConsecutiveBatterFours int
 	prevConsecutiveBatterSixes int

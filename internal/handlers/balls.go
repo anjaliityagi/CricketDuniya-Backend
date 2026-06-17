@@ -9,16 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-//type BallHandler struct {
-//	matchEngine *matchscoring.Engine
-//}
-//
-//func NewBallHandler() *BallHandler {
-//	return &BallHandler{
-//		matchEngine: matchscoring.NewEngine(),
-//	}
-//}
-
 func AddBall(c *gin.Context) {
 	var req dto.BallInputRequest
 

@@ -242,10 +242,10 @@ func SaveBallEventTx(tx *sqlx.Tx, req dto.BallRequest) (string, error) {
 			$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24, NOW()
 		) RETURNING id
 	`
-	err := tx.QueryRowx(sql, req.InningsID, req.MatchID, req.StrikerID, req.NonStrikerID, req.BowlerID,
+	err := tx.Get(&id, sql, req.InningsID, req.MatchID, req.StrikerID, req.NonStrikerID, req.BowlerID,
 		req.BallNo, req.DeliveryNo, req.BallType, req.RunsScored, req.RunsOffBat, req.Extras, req.TotalRuns,
 		req.IsDotBall, req.IsBoundaryFour, req.IsBoundarySix, req.IsWicket, req.DismissalType, req.DismissedPlayerID, req.FielderID,
-		req.Wides, req.NoBalls, req.Byes, req.LegByes, req.IsFreeHit).Scan(&id)
+		req.Wides, req.NoBalls, req.Byes, req.LegByes, req.IsFreeHit)
 	if err != nil {
 		return "", err
 	}

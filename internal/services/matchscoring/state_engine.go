@@ -411,6 +411,7 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 		}
 		wides = extras
 		if wides < 1 {
+
 			wides = 1
 		}
 		if totalRuns < wides {
@@ -431,7 +432,7 @@ func mapBallRequest(req dto.BallInputRequest, strikerID, nonStrikerID, bowlerID 
 		byes = req.Extras
 	case "leg_bye":
 		legByes = req.Extras
-	case "dead_ball", "retired_hurt":
+	case "retired_hurt":
 		legal = false
 		totalRuns = 0
 	}

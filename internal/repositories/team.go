@@ -15,11 +15,12 @@ func CreateTeam(team *models.Team) error {
 	RETURNING id, created_at
 	`
 
-	return database.DB.QueryRow(
+	return database.DB.Get(
+		team,
 		query,
 		team.Name,
 		team.CreatedBy,
-	).Scan(&team.ID, &team.CreatedAt)
+	)
 }
 
 func CreateTeamTx(tx *sqlx.Tx, team *models.Team) error {
@@ -29,11 +30,12 @@ func CreateTeamTx(tx *sqlx.Tx, team *models.Team) error {
 	RETURNING id, created_at
 	`
 
-	return tx.QueryRow(
+	return tx.Get(
+		team,
 		query,
 		team.Name,
 		team.CreatedBy,
-	).Scan(&team.ID, &team.CreatedAt)
+	)
 }
 
 func GetTeamByID(id string) (*models.Team, error) {

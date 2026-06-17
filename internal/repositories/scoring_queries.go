@@ -81,20 +81,12 @@ func ListRecentRunsOffBatForStriker(matchID, inningsID, strikerID string, limit 
 		ORDER BY created_at DESC
 		LIMIT $4
 	`
-	rows, err := database.DB.Queryx(sql, matchID, inningsID, strikerID, limit)
+	out := make([]int, 0, limit)
+	err := database.DB.Select(&out, sql, matchID, inningsID, strikerID, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make([]int, 0, limit)
-	for rows.Next() {
-		var v int
-		if err := rows.Scan(&v); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func ListRecentRunsOffBatForBowler(matchID, inningsID, bowlerID string, limit int) ([]int, error) {
@@ -105,20 +97,12 @@ func ListRecentRunsOffBatForBowler(matchID, inningsID, bowlerID string, limit in
 		ORDER BY created_at DESC
 		LIMIT $4
 	`
-	rows, err := database.DB.Queryx(sql, matchID, inningsID, bowlerID, limit)
+	out := make([]int, 0, limit)
+	err := database.DB.Select(&out, sql, matchID, inningsID, bowlerID, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make([]int, 0, limit)
-	for rows.Next() {
-		var v int
-		if err := rows.Scan(&v); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func ListRecentBallTypesForBowler(matchID, inningsID, bowlerID string, limit int) ([]string, error) {
@@ -129,20 +113,12 @@ func ListRecentBallTypesForBowler(matchID, inningsID, bowlerID string, limit int
 		ORDER BY created_at DESC
 		LIMIT $4
 	`
-	rows, err := database.DB.Queryx(sql, matchID, inningsID, bowlerID, limit)
+	out := make([]string, 0, limit)
+	err := database.DB.Select(&out, sql, matchID, inningsID, bowlerID, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make([]string, 0, limit)
-	for rows.Next() {
-		var v string
-		if err := rows.Scan(&v); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func ListRecentWicketsForBowlerInOver(matchID, inningsID, bowlerID string, ballNo, limit int) ([]bool, error) {
@@ -153,24 +129,19 @@ func ListRecentWicketsForBowlerInOver(matchID, inningsID, bowlerID string, ballN
 		ORDER BY created_at DESC
 		LIMIT $5
 	`
-	rows, err := database.DB.Queryx(sql, matchID, inningsID, bowlerID, ballNo, limit)
+	out := make([]bool, 0, limit)
+	err := database.DB.Select(&out, sql, matchID, inningsID, bowlerID, ballNo, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make([]bool, 0, limit)
-	for rows.Next() {
-		var v bool
-		if err := rows.Scan(&v); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func UpdateInningsTotalsTx(tx *sqlx.Tx, inningsID string, runsDelta, wicketsDelta int) (int, int, error) {
-	var runs, wickets int
+	var totals struct {
+		Runs    int `db:"total_runs"`
+		Wickets int `db:"total_wickets"`
+	}
 	sql := `
 		UPDATE innings
 		SET total_runs = COALESCE(total_runs, 0) + $2,
@@ -178,11 +149,11 @@ func UpdateInningsTotalsTx(tx *sqlx.Tx, inningsID string, runsDelta, wicketsDelt
 		WHERE id = $1
 		RETURNING total_runs, total_wickets
 	`
-	err := tx.QueryRowx(sql, inningsID, runsDelta, wicketsDelta).Scan(&runs, &wickets)
+	err := tx.Get(&totals, sql, inningsID, runsDelta, wicketsDelta)
 	if err != nil {
 		return 0, 0, err
 	}
-	return runs, wickets, nil
+	return totals.Runs, totals.Wickets, nil
 }
 
 func UpsertBattingStatsTx(tx *sqlx.Tx, matchID, matchPlayerID string, runs int, legalBall, isFour, isSix, isOut bool) error {
@@ -318,7 +289,7 @@ func UpsertFantasyPointsTx(tx *sqlx.Tx, matchID, matchPlayerID string, points in
 		return nil
 	}
 	sql := `UPDATE player_match_stats
-		SET ` + bucket + ` = COALESCE(` + bucket + `, 0) + $3,
+		SET` + bucket + ` = COALESCE(` + bucket + `, 0) + $3,
 			fantasy_points = COALESCE(fantasy_points, 0) + $3,
 			updated_at = NOW()
 		WHERE match_id = $1 AND team_player_id = $2`
@@ -351,8 +322,7 @@ func InsertPointEventTx(tx *sqlx.Tx, matchID, matchPlayerID, ballEventID, catego
 }
 
 func ApplyResultPointsTx(tx *sqlx.Tx, matchID, winnerMatchTeamID string) error {
-	sql := `
-		UPDATE player_match_stats pms
+	sql := `UPDATE player_match_stats pms
 		SET result_points = COALESCE(result_points, 0) + 5,
 			fantasy_points = COALESCE(fantasy_points, 0) + 5,
 			updated_at = NOW()
@@ -364,8 +334,7 @@ func ApplyResultPointsTx(tx *sqlx.Tx, matchID, winnerMatchTeamID string) error {
 	if err != nil {
 		return err
 	}
-	sql = `
-		UPDATE player_match_stats pms
+	sql = `UPDATE player_match_stats pms
 		SET result_points = COALESCE(result_points, 0) - 5,
 			fantasy_points = COALESCE(fantasy_points, 0) - 5,
 			updated_at = NOW()
@@ -378,8 +347,7 @@ func ApplyResultPointsTx(tx *sqlx.Tx, matchID, winnerMatchTeamID string) error {
 }
 
 func ApplyNotOutBonus(matchID, inningsID string) error {
-	sql := `
-		UPDATE player_match_stats pms
+	sql := `UPDATE player_match_stats pms
 		SET batting_points = COALESCE(batting_points, 0) + 5,
 			fantasy_points = COALESCE(fantasy_points, 0) + 5,
 			updated_at = NOW()

@@ -45,13 +45,14 @@ func UpdateUserProfile(userID string, req dto.UpdateProfileRequest) (*dto.UserPr
 	`
 
 	var user dto.UserProfileUser
-	err := database.DB.QueryRowx(
+	err := database.DB.Get(
+		&user,
 		query,
 		userID,
 		req.Name,
 		req.BattingStyle,
 		req.BowlingStyle,
-	).StructScan(&user)
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -144,12 +145,12 @@ func GetUserBattingStats(userID string) (*dto.UserBattingStats, error) {
 }
 
 func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
-	query := `
-	SELECT
+	query := `SELECT
 		(
 			FLOOR(COALESCE(SUM(legal_balls_bowled), 0) / 6.0)
 			+ MOD(COALESCE(SUM(legal_balls_bowled), 0), 6)::NUMERIC / 10.0
 		)::FLOAT AS overs_bowled,
+    
 		COALESCE(SUM(wickets_taken),0)::INT AS wickets,
 		COALESCE(SUM(runs_conceded),0)::INT AS runs_conceded,
 		COALESCE(SUM(maidens),0)::INT AS maidens,
@@ -163,8 +164,7 @@ func GetUserBowlingStats(userID string) (*dto.UserBowlingStats, error) {
 )::FLOAT AS economy
 	FROM player_match_stats pms
 	LEFT JOIN team_players tp ON tp.id = pms.team_player_id
-	WHERE tp.player_id = $1
-	`
+	WHERE tp.player_id = $1`
 
 	var stats dto.UserBowlingStats
 	err := database.DB.Get(&stats, query, userID)
@@ -196,8 +196,7 @@ func GetUserFieldingStats(userID string) (*dto.UserFieldingStats, error) {
 }
 
 func GetUserRecentMatches(userID string) ([]dto.UserRecentMatchPerformance, error) {
-	query := `
-	SELECT
+	query := `SELECT
 		pms.match_id,
 		m.match_date,
 		CASE

@@ -32,7 +32,8 @@ func CreateMatchTx(tx *sqlx.Tx, match *models.Match) error {
 	RETURNING id, created_at
 	`
 
-	return tx.QueryRowx(
+	return tx.Get(
+		match,
 		query,
 		match.TeamAID,
 		match.TeamBID,
@@ -41,9 +42,6 @@ func CreateMatchTx(tx *sqlx.Tx, match *models.Match) error {
 		match.MatchDate,
 		match.OversPerInnings,
 		match.Status,
-	).Scan(
-		&match.ID,
-		&match.CreatedAt,
 	)
 }
 
@@ -513,11 +511,14 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 	}
 
 	if inningsCount == 0 {
-		var teamA, teamB string
+		var teams struct {
+			TeamA string `db:"team_a_id"`
+			TeamB string `db:"team_b_id"`
+		}
 
 		sql = `SELECT team_a_id, team_b_id FROM matches WHERE id = $1`
 
-		if err := tx.QueryRowx(sql, matchID).Scan(&teamA, &teamB); err != nil {
+		if err := tx.Get(&teams, sql, matchID); err != nil {
 			return nil, err
 		}
 
@@ -528,9 +529,9 @@ func StartMatch(matchID string) ([]dto.InningsResponse, error) {
 				bowling_team_id,
 				innings_no,
 				started_at
-		 	) VALUES ($1, $2, $3, 1, NOW())
+			) VALUES ($1, $2, $3, 1, NOW())
 		   `
-		if _, err := tx.Exec(sql, matchID, teamA, teamB); err != nil {
+		if _, err := tx.Exec(sql, matchID, teams.TeamA, teams.TeamB); err != nil {
 			return nil, err
 		}
 	}
@@ -637,7 +638,7 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 		ORDER BY pms.fantasy_points DESC, pms.updated_at DESC
 		LIMIT 1
 	`
-	err = tx.QueryRowx(sql, matchID).Scan(&pomUserID)
+	err = tx.Get(&pomUserID, sql, matchID)
 	if err != nil {
 		pomUserID = nil
 	}
@@ -651,7 +652,7 @@ func FinalizeMatch(matchID, winnerMatchTeamID string) error {
 		ORDER BY pms.fantasy_points ASC, pms.updated_at DESC
 		LIMIT 1
 	`
-	err = tx.QueryRowx(sql, matchID).Scan(&worstUserID)
+	err = tx.Get(&worstUserID, sql, matchID)
 	if err != nil {
 		worstUserID = nil
 	}
