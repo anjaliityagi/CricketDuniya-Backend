@@ -1,15 +1,33 @@
-version: "3.6"
-
 services:
+  app:
+    container_name: cricketDuniyaBackend
+    build: .
+    ports:
+      - "8081:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: local
+      DB_PASSWORD: local
+      DB_NAME: postgres
+      DB_SSLMODE: disable
+      JWT_SECRET: my_very_secure_key_123
+    depends_on:
+      - db
+    restart: unless-stopped
+
   db:
     container_name: postgresDb
     image: postgres:16
     ports:
-      - "5434:5432"
-    volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - "5435:5432"
     environment:
       POSTGRES_USER: local
       POSTGRES_PASSWORD: local
       POSTGRES_DB: postgres
     restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
